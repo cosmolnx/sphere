@@ -93,27 +93,34 @@
     position:relative;
     top:10px;
     text-align:center;
-    font-size:10px;
-    letter-spacing:0.22em;
     color:var(--c3);
     opacity:0.42;
     transform:translateY(0);
     transition:opacity .35s ease, color .35s ease, transform .35s ease;
-    white-space:nowrap;
     text-shadow:0 0 10px rgba(207,222,234,0.18);
+  }
+  .model-name-text{
+    display:block;
+    font-size:10px;
+    letter-spacing:0.22em;
+    white-space:nowrap;
   }
   /* names sit quietly beneath every sphere at all times; hover/focus just
      brings them forward rather than toggling visibility on/off */
-  .model-hit.show-label .model-label{ opacity:0.92; color:var(--c4); transform:translateY(-1px); text-shadow:0 0 14px rgba(207,222,234,0.4); }
-  .model-hit.is-main .model-label{ opacity:0.95; color:var(--c4); font-size:12px; }
+  .model-hit.show-label .model-label{ opacity:0.94; color:var(--c4); transform:translateY(-1px); text-shadow:0 0 14px rgba(207,222,234,0.4); }
+  .model-hit.is-main .model-label{ opacity:0.96; color:var(--c4); }
+  .model-hit.is-main .model-name-text{ font-size:12.5px; }
 
-  .model-role{
+  .model-purpose{
     display:block;
     font-size:7.5px;
-    letter-spacing:0.2em;
+    letter-spacing:0.09em;
     color:var(--c3);
-    opacity:0.5;
-    margin-top:3px;
+    opacity:0.55;
+    margin:3px auto 0;
+    max-width:132px;
+    line-height:1.3;
+    white-space:normal;
   }
 
   .model-task{
@@ -154,49 +161,53 @@
   }
   #topLabel .sub{ display:block; font-size:8px; letter-spacing:0.24em; opacity:0.65; margin-top:4px; }
 
-  /* ---------------- internal activity feed (top) ---------------- */
+  /* ---------------- internal activity feed (top-left) ---------------- */
   #feedPanel{
-    position:fixed; top:58px; left:50%; transform:translateX(-50%);
-    width:min(500px, 88vw);
+    position:fixed; top:70px; left:24px;
+    width:min(300px, 30vw);
+    min-height:74px;
     background:linear-gradient(180deg, rgba(19,24,36,0.58), rgba(14,18,25,0.38));
     border:1px solid rgba(207,222,234,0.09);
     border-radius:16px;
-    padding:11px 18px 13px;
+    padding:11px 16px 13px;
     backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
     z-index:9; pointer-events:none;
-    box-shadow:0 12px 40px rgba(0,0,0,0.25);
+    box-shadow:0 12px 40px rgba(0,0,0,0.22);
   }
   .panel-caption{
     font-size:8px; letter-spacing:0.28em; color:var(--c3); opacity:0.42;
-    margin-bottom:7px;
+    margin-bottom:8px;
   }
-  #feedBody{ display:flex; flex-direction:column; gap:6px; }
-  .feed-row{ font-size:11px; line-height:1.45; opacity:0.94; animation:feedIn .45s ease; }
-  .feed-speaker{ color:var(--c4); letter-spacing:0.04em; font-weight:600; margin-right:7px; opacity:0.92; }
+  #feedBody{ min-height:34px; }
+  .feed-msg{ font-size:11px; line-height:1.45; opacity:0; transition:opacity .45s ease; }
+  .feed-msg.visible{ opacity:1; }
+  .feed-speaker{ display:block; color:var(--c4); letter-spacing:0.06em; font-weight:600; opacity:0.92; margin-bottom:2px; }
   .feed-text{ color:var(--c3); opacity:0.82; }
-  @keyframes feedIn{ from{ opacity:0; transform:translateY(3px); } to{ opacity:1; transform:translateY(0); } }
 
-  /* ---------------- active work panel (bottom-right) ---------------- */
+  /* ---------------- active work panel (top-right) ---------------- */
   #workPanel{
-    position:fixed; right:24px; bottom:112px; width:262px;
+    position:fixed; top:70px; right:24px; width:min(300px, 30vw);
+    max-height:230px; overflow:hidden;
     background:linear-gradient(180deg, rgba(19,24,36,0.58), rgba(14,18,25,0.38));
     border:1px solid rgba(207,222,234,0.09);
     border-radius:16px;
-    padding:12px 16px 13px;
+    padding:11px 16px 13px;
     backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
     z-index:9; pointer-events:none;
-    box-shadow:0 12px 40px rgba(0,0,0,0.25);
+    box-shadow:0 12px 40px rgba(0,0,0,0.22);
   }
-  .work-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid rgba(207,222,234,0.06); }
+  @keyframes rowIn{ from{ opacity:0; transform:translateY(4px); } to{ opacity:1; transform:translateY(0); } }
+  .work-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid rgba(207,222,234,0.06); animation:rowIn .4s ease; }
   .work-row:last-child{ border-bottom:none; }
   .work-main{ min-width:0; }
   .work-model{ font-size:10px; letter-spacing:0.1em; color:var(--c4); opacity:0.92; }
-  .work-task{ display:block; font-size:9.5px; color:var(--c3); opacity:0.7; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .work-task{ display:block; font-size:9.5px; color:var(--c3); opacity:0.7; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:160px; }
   .work-status{ flex:none; font-size:8px; letter-spacing:0.14em; padding:2px 8px; border-radius:999px; border:1px solid rgba(207,222,234,0.16); white-space:nowrap; opacity:0.85; }
   .work-status.working{ color:var(--c4); border-color:rgba(207,222,234,0.32); }
   .work-status.waiting{ color:var(--c3); opacity:0.55; }
   .work-status.complete{ color:var(--c3); opacity:0.4; border-color:rgba(207,222,234,0.08); }
   .work-empty{ font-size:10px; color:var(--c3); opacity:0.35; }
+  .work-more{ font-size:9px; color:var(--c3); opacity:0.4; padding:5px 0 0; }
   .work-section-label{ font-size:7.5px; letter-spacing:0.22em; color:var(--c3); opacity:0.32; margin:10px 0 4px; }
 
   #controls{
@@ -261,14 +272,15 @@
     z-index:6; pointer-events:none;
   }
 
-  @media (max-width:900px){
-    #feedPanel{ display:none; }
-    #workPanel{ width:220px; right:14px; bottom:118px; }
+  @media (max-width:1000px){
+    #feedPanel, #workPanel{ width:220px; }
+  }
+  @media (max-width:820px){
+    #feedPanel, #workPanel{ display:none; }
   }
   @media (max-width:760px){
     button.lx-btn{ padding:6px 9px; font-size:9px; }
     .model-task{ font-size:9px; padding:3px 8px; }
-    #workPanel{ display:none; }
   }
 </style>
 </head>
@@ -349,13 +361,18 @@
   ================================================================= */
   const MODEL_ORDER = ["s5","coder","researcher","planner","tester","computer","git"];
   const MODEL_META = {
-    s5:         { name:"LANUX S5", role:"CONTROLLER",  variant:"controller",  particles:460 },
-    coder:      { name:"CODER",       role:"SPECIALIST", variant:"structured",  particles:180 },
-    researcher: { name:"RESEARCHER",  role:"SPECIALIST", variant:"flowing",     particles:180 },
-    planner:    { name:"PLANNER",     role:"SPECIALIST", variant:"orbital",     particles:180 },
-    tester:     { name:"TESTER",      role:"SPECIALIST", variant:"pulse",       particles:170 },
-    computer:   { name:"COMPUTER",    role:"SPECIALIST", variant:"mechanical",  particles:170 },
-    git:        { name:"GIT / OPS",   role:"SPECIALIST", variant:"branching",   particles:170 },
+    s5:         { name:"LANUX S5", purpose:"Controller / Decision Maker", role:"CONTROLLER",  variant:"controller",  particles:460 },
+    coder:      { name:"CODER",       purpose:"Code / Implementation",       role:"SPECIALIST", variant:"structured",  particles:180 },
+    researcher: { name:"RESEARCHER",  purpose:"Research / Information",      role:"SPECIALIST", variant:"flowing",     particles:180 },
+    planner:    { name:"PLANNER",     purpose:"Planning / Strategy",         role:"SPECIALIST", variant:"orbital",     particles:180 },
+    tester:     { name:"TESTER",      purpose:"Testing / Debugging",         role:"SPECIALIST", variant:"pulse",       particles:170 },
+    computer:   { name:"COMPUTER",    purpose:"PC Control / Automation",     role:"SPECIALIST", variant:"mechanical",  particles:170 },
+    git:        { name:"GIT / OPS",   purpose:"Git / Projects / Deployment", role:"SPECIALIST", variant:"branching",   particles:170 },
+  };
+  // fixed left/right command-center columns — never a circular orbit
+  const SIDE_LAYOUT = {
+    left:  ["coder","planner","computer"],
+    right: ["researcher","tester","git"]
   };
   const TASKS = {
     coder:      "Modify authentication system",
@@ -415,7 +432,7 @@
   MODEL_ORDER.forEach(function(id){
     const meta = MODEL_META[id];
     const e = {
-      id:id, name:meta.name, role:meta.role, variant:VARIANTS[meta.variant],
+      id:id, name:meta.name, purpose:meta.purpose, role:meta.role, variant:VARIANTS[meta.variant],
       particles: buildParticles(meta.particles),
       cur:{x:0,y:0,r:10}, target:{x:0,y:0,r:10},
       hoverOffset:{x:0,y:0}, hoverBoost:0, hovered:false,
@@ -540,45 +557,55 @@
   }
 
   /* =================================================================
-     LAYOUT
-     S5 sits in a deliberately spacious "command center" — specialists
-     orbit well clear of it (organic, not a rigid ring) rather than
-     crowding the controller.
+     LAYOUT — command-center composition
+     S5 is large and centered with deliberate negative space. The six
+     specialists sit ONLY in two fixed vertical columns (left / right) —
+     never a ring, never above/below S5. Positions are derived from the
+     live viewport size (reserved top/bottom bands + a responsive column
+     gap) so the composition holds together across desktop sizes rather
+     than relying on fixed pixel coordinates.
   ================================================================= */
+  const TOP_RESERVED = 230;    // clears the top-left/top-right info panels
+  const BOTTOM_RESERVED = 190; // clears the control bar + mini brain row
+
+  function layoutColumn(ids, colX, centerY, vSpacing, m, specR){
+    const n = ids.length;
+    ids.forEach(function(id, idx){
+      const offsetSteps = idx - (n-1)/2;
+      const wobble = 1 + 0.035*Math.sin(idx*2.1 + colX*0.001); // subtle, never rigid
+      entities[id].target = {
+        x: colX,
+        y: centerY + offsetSteps*vSpacing*wobble,
+        r: specR
+      };
+    });
+  }
+
   function computeLayout(){
     const W = mainCanvas.clientWidth, H = mainCanvas.clientHeight;
     const m = Math.min(W,H);
-    const specialists = MODEL_ORDER.filter(function(id){ return id!=="s5"; });
+    const middleH = Math.max(260, H - TOP_RESERVED - BOTTOM_RESERVED);
+    const centerY = TOP_RESERVED + middleH/2;
+    const vSpacing = Math.min(middleH*0.30, 140);
+    const colGap = Math.min(W*0.33, Math.max(200, W/2 - 130));
+    const leftX = W*0.5 - colGap;
+    const rightX = W*0.5 + colGap;
+    const specR = m*0.058;
 
     if (activeMain === "s5"){
-      const cy = H*0.54;
-      entities.s5.target = { x:W*0.5, y:cy, r:m*0.140 };
-      const orbitR = m*0.415; // generous distance — a real command space around S5
-      specialists.forEach(function(id, idx){
-        const angle = -Math.PI/2 + idx*(Math.PI*2/specialists.length);
-        const wobble = 1 + 0.07*Math.sin(idx*2.399); // organic, non-diagram irregularity
-        entities[id].target = {
-          x: W*0.5 + Math.cos(angle)*orbitR*wobble,
-          y: cy + Math.sin(angle)*orbitR*0.80*wobble,
-          r: m*0.050
-        };
-      });
+      const r = Math.min(m*0.20, middleH*0.42);
+      entities.s5.target = { x:W*0.5, y:centerY, r:r };
+      layoutColumn(SIDE_LAYOUT.left, leftX, centerY, vSpacing, m, specR);
+      layoutColumn(SIDE_LAYOUT.right, rightX, centerY, vSpacing, m, specR);
     } else {
       const mainId = activeMain;
-      const cy = H*0.58;
-      entities[mainId].target = { x:W*0.5, y:cy, r:m*0.132 };
-      entities.s5.target = { x:W*0.5, y:H*0.27, r:m*0.042 };
-      const others = specialists.filter(function(id){ return id!==mainId; });
-      const orbitR = m*0.345;
-      others.forEach(function(id, idx){
-        const angle = -Math.PI/2 + idx*(Math.PI*2/others.length) + 0.28;
-        const wobble = 1 + 0.06*Math.sin(idx*2.1);
-        entities[id].target = {
-          x: W*0.5 + Math.cos(angle)*orbitR*wobble,
-          y: cy + Math.sin(angle)*orbitR*0.68*wobble,
-          r: m*0.042
-        };
-      });
+      const r = Math.min(m*0.185, middleH*0.40);
+      entities[mainId].target = { x:W*0.5, y:centerY, r:r };
+      entities.s5.target = { x:W*0.5, y:TOP_RESERVED*0.55, r:m*0.035 };
+      const leftIds = SIDE_LAYOUT.left.filter(function(id){ return id!==mainId; });
+      const rightIds = SIDE_LAYOUT.right.filter(function(id){ return id!==mainId; });
+      layoutColumn(leftIds, leftX, centerY, vSpacing, m, specR);
+      layoutColumn(rightIds, rightX, centerY, vSpacing, m, specR);
     }
   }
 
@@ -595,24 +622,40 @@
   }
 
   /* =================================================================
-     ACTIVITY FEED (top panel) & WORK LOG (bottom-right panel)
+     ACTIVITY FEED (top-left) — a live one-message-at-a-time queue,
+     not a stacked log. Each message fades in, holds briefly, fades
+     out, then the next queued message takes its place.
   ================================================================= */
   const feedBody = document.getElementById("feedBody");
   const workBody = document.getElementById("workBody");
-  const feedMessages = [];
+  const feedQueue = [];
   const completedLog = [];
+  let feedBusy = false;
+  const FEED_HOLD_MS = 1750;   // ~1.5-2s on screen
+  const FEED_FADE_MS = 420;
 
   function logMessage(speaker, text){
-    feedMessages.push({ speaker:speaker, text:text });
-    if (feedMessages.length > 60) feedMessages.shift();
-    renderFeed();
+    feedQueue.push({ speaker:speaker, text:text });
+    processFeedQueue();
   }
 
-  function renderFeed(){
-    const recent = feedMessages.slice(-6);
-    feedBody.innerHTML = recent.map(function(m){
-      return '<div class="feed-row"><span class="feed-speaker">'+m.speaker+'</span><span class="feed-text">'+m.text+'</span></div>';
-    }).join("");
+  function processFeedQueue(){
+    if (feedBusy || feedQueue.length===0) return;
+    feedBusy = true;
+    const msg = feedQueue.shift();
+    feedBody.innerHTML = '<div class="feed-msg" id="feedMsgNow"><span class="feed-speaker">'+msg.speaker+'</span><span class="feed-text">'+msg.text+'</span></div>';
+    requestAnimationFrame(function(){
+      const el = document.getElementById("feedMsgNow");
+      if (el) el.classList.add("visible");
+    });
+    setTimeout(function(){
+      const el = document.getElementById("feedMsgNow");
+      if (el) el.classList.remove("visible");
+      setTimeout(function(){
+        feedBusy = false;
+        processFeedQueue();
+      }, FEED_FADE_MS);
+    }, FEED_HOLD_MS);
   }
 
   function workStatusLabel(state){
@@ -635,15 +678,19 @@
     if (active.length===0 && completedLog.length===0){
       html = '<div class="work-empty">No active tasks. Delegate work from S5 to see it here.</div>';
     } else {
-      active.forEach(function(id){
+      const shown = active.slice(0,3); // current work stays the priority — never a giant list
+      shown.forEach(function(id){
         const e = entities[id];
         html += '<div class="work-row"><div class="work-main"><div class="work-model">'+e.name+'</div>'
               + '<span class="work-task">'+ (e.taskText||"") +'</span></div>'
               + '<div class="work-status '+workStatusClass(e.taskState)+'">'+workStatusLabel(e.taskState)+'</div></div>';
       });
+      if (active.length > shown.length){
+        html += '<div class="work-more">+'+(active.length-shown.length)+' more working…</div>';
+      }
       if (completedLog.length){
-        html += '<div class="work-section-label">RECENT HISTORY</div>';
-        completedLog.slice(-4).reverse().forEach(function(item){
+        html += '<div class="work-section-label">HISTORY</div>';
+        completedLog.slice(-1).reverse().forEach(function(item){
           html += '<div class="work-row"><div class="work-main"><div class="work-model">'+item.model+'</div>'
                 + '<span class="work-task">'+item.task+'</span></div>'
                 + '<div class="work-status complete">COMPLETE</div></div>';
@@ -1000,7 +1047,7 @@
 
     const label = document.createElement("div");
     label.className = "model-label";
-    label.innerHTML = e.name + "<span class='model-role'>" + e.role + "</span>";
+    label.innerHTML = "<span class='model-name-text'>" + e.name + "</span><span class='model-purpose'>" + e.purpose + "</span>";
     el.appendChild(label);
 
     const task = document.createElement("div");
@@ -1104,7 +1151,7 @@
     // a quiet cue that this is deliberately protected negative space, not a diagram
     if (activeMain === "s5"){
       mainCtx.beginPath();
-      mainCtx.arc(entities.s5.cur.x, entities.s5.cur.y, entities.s5.cur.r*2.5, 0, Math.PI*2);
+      mainCtx.arc(entities.s5.cur.x, entities.s5.cur.y, entities.s5.cur.r*1.55, 0, Math.PI*2);
       mainCtx.strokeStyle = rgba(PALETTE.c3, 0.035);
       mainCtx.lineWidth = 1;
       mainCtx.stroke();
@@ -1227,7 +1274,6 @@
   ================================================================= */
   resize();
   updateTopLabel();
-  renderFeed();
   renderWorkPanel();
   logMessage("LANUX-S5", "Standing by. Ready for instructions.");
   requestAnimationFrame(frame);
