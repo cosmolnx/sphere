@@ -1,41 +1,53 @@
 <!--
-  LANUX BRAIN — VISUAL PROTOTYPE (v2)
+  LANUX BRAIN — VISUAL PROTOTYPE (v3)
   ------------------------------------
-  Standalone visual/interaction prototype for LANUX's multi-model "brain":
+  Standalone visual concept for LANUX's MAIN VOICE CONVERSATION INTERFACE:
   S5 (the controller) plus six specialist models (Coder, Researcher,
   Planner, Tester, Computer/Automation, Git/Project Ops).
 
-  Builds on the V1 sphere technology (Fibonacci particle field, layered
-  projection, orbital rings, luminous core, effect envelopes) and extends
-  it into a multi-entity system with:
-    - a home layout (S5 large + 6 specialists around it)
-    - a focused layout (clicked specialist becomes large, S5 shrinks to
-      a persistent "home" sphere at the top, other specialists rearrange)
-    - animated delegation "energy streams" from S5 to one or many models
-    - per-model task states (idle / receiving / working / returning / complete)
-    - hover + click interaction on every sphere
-    - a warning state with a subtle warm tint instead of the base
-      blue-grey palette
+  Builds directly on the V2 sphere technology (Fibonacci particle field,
+  layered projection, orbital rings, luminous core, per-model movement
+  variants, effect envelopes, delegation streams) and refines it into a
+  more professional composition:
+    - a spacious "command center" layout — S5 has deliberate negative
+      space around it, specialists orbit further out, no permanent
+      connector lines (only dynamic communication streams)
+    - every sphere has a persistent, subtle name label beneath it
+    - a top "internal activity" panel showing live communication between
+      the user, S5, and the specialists (not a chat box — an activity feed)
+    - a bottom-right "active work" panel showing each specialist's current
+      task and status (WAITING / WORKING / COMPLETE), with a short history
+    - model-to-model ("peer") communication streams in addition to the
+      existing S5 <-> specialist streams
+    - a scripted "run full demo" control that plays out an entire
+      delegate -> work -> peer-communication -> complete -> acknowledge
+      workflow end to end
+    - the bottom-left mini brain always mirrors S5/LANUX itself (LANUX's
+      persistent presence), reacting to delegation, warnings, completion,
+      and voice activity regardless of which model is currently focused
 
   Pure HTML + CSS + vanilla JS. No frameworks, no external assets.
   No microphone, no speech recognition, no TTS, no backend, no real
-  model inference — every model "doing work" is a visual simulation only.
-  This file is fully self-contained and does not touch any other
-  LANUX project file.
+  model inference, no auth — every model "doing work" or "talking" is a
+  visual simulation only. This file is fully self-contained and does not
+  touch any other LANUX project file.
 -->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>LANUX — Brain Prototype v2</title>
+<title>LANUX — Voice Interface Concept (v3)</title>
 <style>
   :root{
     --c1:#ABBED3;
     --c2:#B0BFD1;
     --c3:#B9C3D0;
     --c4:#CFDEEA;
-    --bg:#050608;
+    --bg:#0B0E14;      /* primary background — official LANUX foundation */
+    --bg2:#0E1219;     /* secondary background */
+    --surface:#131824; /* surface (panels) */
+    --elevated:#1A2130;/* elevated surface (buttons, chips) */
   }
 
   *{ box-sizing:border-box; }
@@ -51,8 +63,8 @@
   body::before{
     content:"";
     position:fixed; inset:0; pointer-events:none; z-index:4;
-    background:radial-gradient(ellipse at 50% 42%, rgba(180,196,214,0.05) 0%, rgba(0,0,0,0) 55%),
-               radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%);
+    background:radial-gradient(ellipse at 50% 42%, rgba(180,196,214,0.05) 0%, rgba(11,14,20,0) 55%),
+               radial-gradient(ellipse at 50% 50%, rgba(11,14,20,0) 0%, rgba(6,7,11,0.6) 100%);
   }
 
   #stage{ position:fixed; inset:0; }
@@ -79,27 +91,29 @@
 
   .model-label{
     position:relative;
-    top:8px;
+    top:10px;
     text-align:center;
-    font-size:10.5px;
+    font-size:10px;
     letter-spacing:0.22em;
-    color:var(--c4);
-    opacity:0;
-    transform:translateY(4px);
-    transition:opacity .35s ease, transform .35s ease;
+    color:var(--c3);
+    opacity:0.42;
+    transform:translateY(0);
+    transition:opacity .35s ease, color .35s ease, transform .35s ease;
     white-space:nowrap;
-    text-shadow:0 0 12px rgba(207,222,234,0.35);
+    text-shadow:0 0 10px rgba(207,222,234,0.18);
   }
-  .model-hit.show-label .model-label{ opacity:0.85; transform:translateY(0); }
-  .model-hit.is-main .model-label{ opacity:0.95; font-size:12px; }
+  /* names sit quietly beneath every sphere at all times; hover/focus just
+     brings them forward rather than toggling visibility on/off */
+  .model-hit.show-label .model-label{ opacity:0.92; color:var(--c4); transform:translateY(-1px); text-shadow:0 0 14px rgba(207,222,234,0.4); }
+  .model-hit.is-main .model-label{ opacity:0.95; color:var(--c4); font-size:12px; }
 
   .model-role{
     display:block;
-    font-size:8px;
-    letter-spacing:0.18em;
+    font-size:7.5px;
+    letter-spacing:0.2em;
     color:var(--c3);
-    opacity:0.55;
-    margin-top:2px;
+    opacity:0.5;
+    margin-top:3px;
   }
 
   .model-task{
@@ -110,7 +124,7 @@
     font-size:10px;
     letter-spacing:0.02em;
     color:var(--c3);
-    background:rgba(8,10,13,0.45);
+    background:rgba(19,24,36,0.55);
     border:1px solid rgba(207,222,234,0.10);
     padding:4px 10px;
     border-radius:999px;
@@ -128,28 +142,73 @@
   }
 
   #topLabel{
-    position:fixed; top:22px; left:50%; transform:translateX(-50%);
+    position:fixed; top:20px; left:50%; transform:translateX(-50%);
     color:var(--c3);
-    font-size:10.5px;
-    letter-spacing:0.3em;
-    opacity:0.4;
+    font-size:10px;
+    letter-spacing:0.34em;
+    opacity:0.38;
     z-index:10;
     user-select:none;
     pointer-events:none;
     text-align:center;
   }
-  #topLabel .sub{ display:block; font-size:8.5px; letter-spacing:0.22em; opacity:0.7; margin-top:4px; }
+  #topLabel .sub{ display:block; font-size:8px; letter-spacing:0.24em; opacity:0.65; margin-top:4px; }
+
+  /* ---------------- internal activity feed (top) ---------------- */
+  #feedPanel{
+    position:fixed; top:58px; left:50%; transform:translateX(-50%);
+    width:min(500px, 88vw);
+    background:linear-gradient(180deg, rgba(19,24,36,0.58), rgba(14,18,25,0.38));
+    border:1px solid rgba(207,222,234,0.09);
+    border-radius:16px;
+    padding:11px 18px 13px;
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    z-index:9; pointer-events:none;
+    box-shadow:0 12px 40px rgba(0,0,0,0.25);
+  }
+  .panel-caption{
+    font-size:8px; letter-spacing:0.28em; color:var(--c3); opacity:0.42;
+    margin-bottom:7px;
+  }
+  #feedBody{ display:flex; flex-direction:column; gap:6px; }
+  .feed-row{ font-size:11px; line-height:1.45; opacity:0.94; animation:feedIn .45s ease; }
+  .feed-speaker{ color:var(--c4); letter-spacing:0.04em; font-weight:600; margin-right:7px; opacity:0.92; }
+  .feed-text{ color:var(--c3); opacity:0.82; }
+  @keyframes feedIn{ from{ opacity:0; transform:translateY(3px); } to{ opacity:1; transform:translateY(0); } }
+
+  /* ---------------- active work panel (bottom-right) ---------------- */
+  #workPanel{
+    position:fixed; right:24px; bottom:112px; width:262px;
+    background:linear-gradient(180deg, rgba(19,24,36,0.58), rgba(14,18,25,0.38));
+    border:1px solid rgba(207,222,234,0.09);
+    border-radius:16px;
+    padding:12px 16px 13px;
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    z-index:9; pointer-events:none;
+    box-shadow:0 12px 40px rgba(0,0,0,0.25);
+  }
+  .work-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid rgba(207,222,234,0.06); }
+  .work-row:last-child{ border-bottom:none; }
+  .work-main{ min-width:0; }
+  .work-model{ font-size:10px; letter-spacing:0.1em; color:var(--c4); opacity:0.92; }
+  .work-task{ display:block; font-size:9.5px; color:var(--c3); opacity:0.7; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .work-status{ flex:none; font-size:8px; letter-spacing:0.14em; padding:2px 8px; border-radius:999px; border:1px solid rgba(207,222,234,0.16); white-space:nowrap; opacity:0.85; }
+  .work-status.working{ color:var(--c4); border-color:rgba(207,222,234,0.32); }
+  .work-status.waiting{ color:var(--c3); opacity:0.55; }
+  .work-status.complete{ color:var(--c3); opacity:0.4; border-color:rgba(207,222,234,0.08); }
+  .work-empty{ font-size:10px; color:var(--c3); opacity:0.35; }
+  .work-section-label{ font-size:7.5px; letter-spacing:0.22em; color:var(--c3); opacity:0.32; margin:10px 0 4px; }
 
   #controls{
     position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-    display:flex; flex-direction:column; align-items:center; gap:8px;
+    display:flex; flex-direction:column; align-items:center; gap:7px;
     max-width:94vw; z-index:10;
   }
   .control-row{
     display:flex; flex-wrap:wrap; justify-content:center; gap:6px;
   }
   .row-caption{
-    font-size:8.5px; letter-spacing:0.24em; color:var(--c3); opacity:0.4;
+    font-size:8px; letter-spacing:0.26em; color:var(--c3); opacity:0.36;
     margin-bottom:-2px;
   }
   #controls .divider{
@@ -158,25 +217,32 @@
 
   button.lx-btn{
     appearance:none;
-    border:1px solid rgba(207,222,234,0.14);
-    background:rgba(207,222,234,0.03);
+    border:1px solid rgba(207,222,234,0.13);
+    background:rgba(26,33,48,0.45);
     color:var(--c4);
-    font-size:10.5px;
+    font-size:10px;
     letter-spacing:0.06em;
-    padding:7px 12px;
+    padding:6px 11px;
     border-radius:999px;
     cursor:pointer;
     backdrop-filter:blur(8px);
     -webkit-backdrop-filter:blur(8px);
     transition:background .25s ease, border-color .25s ease, transform .15s ease, opacity .25s ease;
-    opacity:0.72;
+    opacity:0.68;
   }
-  button.lx-btn:hover{ opacity:1; background:rgba(207,222,234,0.08); border-color:rgba(207,222,234,0.32); }
+  button.lx-btn:hover{ opacity:1; background:rgba(207,222,234,0.09); border-color:rgba(207,222,234,0.32); }
   button.lx-btn:active{ transform:scale(0.94); }
-  button.lx-btn.state-btn.is-active{ opacity:1; background:rgba(207,222,234,0.12); border-color:rgba(207,222,234,0.45); }
-  button.lx-btn.warn-btn{ border-color:rgba(196,150,145,0.25); }
-  button.lx-btn.warn-btn:hover{ background:rgba(196,150,145,0.10); border-color:rgba(196,150,145,0.4); }
-  button.lx-btn.deleg-btn{ font-size:9.5px; }
+  button.lx-btn.state-btn.is-active{ opacity:1; background:rgba(207,222,234,0.14); border-color:rgba(207,222,234,0.45); }
+  button.lx-btn.warn-btn{ border-color:rgba(196,150,145,0.22); }
+  button.lx-btn.warn-btn:hover{ background:rgba(196,150,145,0.12); border-color:rgba(196,150,145,0.4); }
+  button.lx-btn.deleg-btn{ font-size:9px; }
+  button.lx-btn.demo-btn{
+    font-size:10px; letter-spacing:0.12em;
+    border-color:rgba(207,222,234,0.28);
+    background:rgba(207,222,234,0.07);
+    opacity:0.88;
+  }
+  button.lx-btn.demo-btn:hover{ background:rgba(207,222,234,0.14); border-color:rgba(207,222,234,0.5); }
 
   .mini-ring{
     position:fixed; left:22px; bottom:22px; width:56px; height:56px;
@@ -195,9 +261,14 @@
     z-index:6; pointer-events:none;
   }
 
+  @media (max-width:900px){
+    #feedPanel{ display:none; }
+    #workPanel{ width:220px; right:14px; bottom:118px; }
+  }
   @media (max-width:760px){
-    button.lx-btn{ padding:6px 9px; font-size:9.5px; }
+    button.lx-btn{ padding:6px 9px; font-size:9px; }
     .model-task{ font-size:9px; padding:3px 8px; }
+    #workPanel{ display:none; }
   }
 </style>
 </head>
@@ -205,9 +276,19 @@
 
 <div id="topLabel">LANUX<span class="sub" id="topSub">S5 — CENTRAL CONTROLLER</span></div>
 
+<div id="feedPanel">
+  <div class="panel-caption">INTERNAL ACTIVITY</div>
+  <div id="feedBody"></div>
+</div>
+
 <div id="stage">
   <canvas id="main"></canvas>
   <div id="overlay"></div>
+</div>
+
+<div id="workPanel">
+  <div class="panel-caption">ACTIVE WORK</div>
+  <div id="workBody"></div>
 </div>
 
 <div class="mini-ring"></div>
@@ -215,7 +296,7 @@
 <div id="miniLabel">LANUX PRESENT</div>
 
 <div id="controls">
-  <div class="row-caption">ACTIVE MODEL</div>
+  <div class="row-caption">VOICE / REACTIONS</div>
   <div class="control-row">
     <button class="lx-btn state-btn" data-mode="idle">IDLE</button>
     <button class="lx-btn state-btn" data-mode="listen">LISTEN</button>
@@ -237,8 +318,11 @@
     <button class="lx-btn deleg-btn" data-deleg="git">→ GIT</button>
     <div class="divider"></div>
     <button class="lx-btn deleg-btn" data-deleg="all">→ ALL</button>
+    <div class="divider"></div>
+    <button class="lx-btn demo-btn" id="demoBtn">▶ RUN FULL DEMO</button>
   </div>
 </div>
+
 
 <script>
 (function(){
@@ -457,6 +541,9 @@
 
   /* =================================================================
      LAYOUT
+     S5 sits in a deliberately spacious "command center" — specialists
+     orbit well clear of it (organic, not a rigid ring) rather than
+     crowding the controller.
   ================================================================= */
   function computeLayout(){
     const W = mainCanvas.clientWidth, H = mainCanvas.clientHeight;
@@ -464,28 +551,32 @@
     const specialists = MODEL_ORDER.filter(function(id){ return id!=="s5"; });
 
     if (activeMain === "s5"){
-      entities.s5.target = { x:W*0.5, y:H*0.46, r:m*0.155 };
-      const orbitR = m*0.335;
+      const cy = H*0.54;
+      entities.s5.target = { x:W*0.5, y:cy, r:m*0.140 };
+      const orbitR = m*0.415; // generous distance — a real command space around S5
       specialists.forEach(function(id, idx){
         const angle = -Math.PI/2 + idx*(Math.PI*2/specialists.length);
+        const wobble = 1 + 0.07*Math.sin(idx*2.399); // organic, non-diagram irregularity
         entities[id].target = {
-          x: W*0.5 + Math.cos(angle)*orbitR,
-          y: H*0.46 + Math.sin(angle)*orbitR*0.74,
-          r: m*0.052
+          x: W*0.5 + Math.cos(angle)*orbitR*wobble,
+          y: cy + Math.sin(angle)*orbitR*0.80*wobble,
+          r: m*0.050
         };
       });
     } else {
       const mainId = activeMain;
-      entities[mainId].target = { x:W*0.5, y:H*0.56, r:m*0.145 };
-      entities.s5.target = { x:W*0.5, y:H*0.15, r:m*0.05 };
+      const cy = H*0.58;
+      entities[mainId].target = { x:W*0.5, y:cy, r:m*0.132 };
+      entities.s5.target = { x:W*0.5, y:H*0.27, r:m*0.042 };
       const others = specialists.filter(function(id){ return id!==mainId; });
-      const orbitR = m*0.30;
+      const orbitR = m*0.345;
       others.forEach(function(id, idx){
         const angle = -Math.PI/2 + idx*(Math.PI*2/others.length) + 0.28;
+        const wobble = 1 + 0.06*Math.sin(idx*2.1);
         entities[id].target = {
-          x: W*0.5 + Math.cos(angle)*orbitR,
-          y: H*0.63 + Math.sin(angle)*orbitR*0.62,
-          r: m*0.044
+          x: W*0.5 + Math.cos(angle)*orbitR*wobble,
+          y: cy + Math.sin(angle)*orbitR*0.68*wobble,
+          r: m*0.042
         };
       });
     }
@@ -504,28 +595,108 @@
   }
 
   /* =================================================================
+     ACTIVITY FEED (top panel) & WORK LOG (bottom-right panel)
+  ================================================================= */
+  const feedBody = document.getElementById("feedBody");
+  const workBody = document.getElementById("workBody");
+  const feedMessages = [];
+  const completedLog = [];
+
+  function logMessage(speaker, text){
+    feedMessages.push({ speaker:speaker, text:text });
+    if (feedMessages.length > 60) feedMessages.shift();
+    renderFeed();
+  }
+
+  function renderFeed(){
+    const recent = feedMessages.slice(-6);
+    feedBody.innerHTML = recent.map(function(m){
+      return '<div class="feed-row"><span class="feed-speaker">'+m.speaker+'</span><span class="feed-text">'+m.text+'</span></div>';
+    }).join("");
+  }
+
+  function workStatusLabel(state){
+    if (state==="receiving") return "WAITING";
+    if (state==="working") return "WORKING";
+    if (state==="returning") return "WORKING";
+    if (state==="complete") return "COMPLETE";
+    return "";
+  }
+  function workStatusClass(state){
+    if (state==="receiving") return "waiting";
+    if (state==="working"||state==="returning") return "working";
+    return "complete";
+  }
+
+  function renderWorkPanel(){
+    const specialists = MODEL_ORDER.filter(function(id){ return id!=="s5"; });
+    const active = specialists.filter(function(id){ return entities[id].taskState!=="idle"; });
+    let html = "";
+    if (active.length===0 && completedLog.length===0){
+      html = '<div class="work-empty">No active tasks. Delegate work from S5 to see it here.</div>';
+    } else {
+      active.forEach(function(id){
+        const e = entities[id];
+        html += '<div class="work-row"><div class="work-main"><div class="work-model">'+e.name+'</div>'
+              + '<span class="work-task">'+ (e.taskText||"") +'</span></div>'
+              + '<div class="work-status '+workStatusClass(e.taskState)+'">'+workStatusLabel(e.taskState)+'</div></div>';
+      });
+      if (completedLog.length){
+        html += '<div class="work-section-label">RECENT HISTORY</div>';
+        completedLog.slice(-4).reverse().forEach(function(item){
+          html += '<div class="work-row"><div class="work-main"><div class="work-model">'+item.model+'</div>'
+                + '<span class="work-task">'+item.task+'</span></div>'
+                + '<div class="work-status complete">COMPLETE</div></div>';
+        });
+      }
+    }
+    if (workBody._sig !== html){
+      workBody.innerHTML = html;
+      workBody._sig = html;
+    }
+  }
+
+  /* =================================================================
      DELEGATION
   ================================================================= */
-  function spawnStream(fromId, toId, kind, taskText){
+  function spawnStream(fromId, toId, kind, taskText, workDuration){
     streams.push({
       fromId:fromId, toId:toId, kind:kind,
       start:performance.now(), duration: 900,
-      taskText: taskText || "", workDuration: 4200
+      taskText: taskText || "", workDuration: workDuration || 4200
     });
   }
 
-  function delegate(ids){
+  function delegate(ids, overrideTasks, overrideDuration){
     const s5 = entities.s5;
     triggerWordOn(s5, "decision");
+    logMessage("LANUX-S5", ids.length>1
+      ? "Assigning work across " + ids.length + " specialists."
+      : "Assigning a task to " + entities[ids[0]].name + ".");
     ids.forEach(function(id, idx){
       setTimeout(function(){
+        const text = (overrideTasks && overrideTasks[id]) || TASKS[id];
         entities[id].taskState = "receiving";
-        spawnStream("s5", id, "out", TASKS[id]);
+        spawnStream("s5", id, "out", text, overrideDuration);
+        logMessage("S5 → " + entities[id].name.toUpperCase(), text);
       }, 450 + idx*160);
     });
   }
 
+  function forceComplete(modelId, customMsg){
+    const e = entities[modelId];
+    if (e.taskState === "idle" || e.taskState === "complete") return;
+    e._pendingCompleteMsg = customMsg || null;
+    e.taskState = "returning";
+    spawnStream(modelId, "s5", "return");
+  }
+
+
   function handleStreamArrival(s){
+    if (s.kind === "peer"){
+      triggerWordOn(entities[s.toId], "notice");
+      return;
+    }
     if (s.kind === "out"){
       const target = entities[s.toId];
       target.taskState = "receiving";
@@ -537,9 +708,14 @@
       }, 350);
     } else {
       const src = entities[s.fromId];
+      const doneTask = src.taskText;
+      const msgText = src._pendingCompleteMsg || (doneTask ? doneTask + " — complete." : "Task complete.");
       triggerWordOn(entities.s5, "ack");
       src.taskState = "complete";
       triggerWordOn(src, "complete");
+      logMessage(src.name.toUpperCase() + " → LANUX-S5", msgText);
+      completedLog.push({ model:src.name, task: doneTask || msgText });
+      src._pendingCompleteMsg = null;
       src.taskText = "";
       setTimeout(function(){
         if (src.taskState === "complete") src.taskState = "idle";
@@ -924,6 +1100,16 @@
     mainCtx.clearRect(0,0,mainCanvas.clientWidth, mainCanvas.clientHeight);
     drawSystemPulses(mainCtx);
 
+    // faint "command space" boundary around S5 when it's the home/main sphere —
+    // a quiet cue that this is deliberately protected negative space, not a diagram
+    if (activeMain === "s5"){
+      mainCtx.beginPath();
+      mainCtx.arc(entities.s5.cur.x, entities.s5.cur.y, entities.s5.cur.r*2.5, 0, Math.PI*2);
+      mainCtx.strokeStyle = rgba(PALETTE.c3, 0.035);
+      mainCtx.lineWidth = 1;
+      mainCtx.stroke();
+    }
+
     const drawOrder = MODEL_ORDER.filter(function(id){ return id!=="s5"; }).concat(["s5"]);
     drawOrder.forEach(function(id){
       const e = entities[id];
@@ -934,10 +1120,13 @@
 
     drawStreams(mainCtx);
     syncOverlay();
+    renderWorkPanel();
 
+    // the bottom-left mini brain always mirrors S5/LANUX itself — it is
+    // LANUX's persistent presence, not whichever model happens to be focused
     const mmw = miniCanvas.clientWidth, mmh = miniCanvas.clientHeight;
     miniCtx.clearRect(0,0,mmw,mmh);
-    drawSphereVisual(miniCtx, mmw/2, mmh/2, Math.min(mmw,mmh)*0.30, entities[activeMain], { particleScale:0.55, lineScale:0.5, phaseOffset:1.7 });
+    drawSphereVisual(miniCtx, mmw/2, mmh/2, Math.min(mmw,mmh)*0.30, entities.s5, { particleScale:0.55, lineScale:0.5, phaseOffset:1.7 });
 
     requestAnimationFrame(frame);
   }
@@ -945,19 +1134,26 @@
   /* =================================================================
      CONTROLS
   ================================================================= */
-  document.querySelectorAll(".state-btn").forEach(function(btn){
-    btn.addEventListener("click", function(){
-      entities[activeMain].mode = btn.dataset.mode;
-      document.querySelectorAll(".state-btn").forEach(function(b){
-        b.classList.toggle("is-active", b===btn);
-      });
+  function setVoiceMode(mode){
+    entities[activeMain].mode = mode;
+    if (activeMain !== "s5") entities.s5.mode = mode; // LANUX/S5 always reflects voice activity too
+    document.querySelectorAll(".state-btn").forEach(function(b){
+      b.classList.toggle("is-active", b.dataset.mode === mode);
     });
+  }
+
+  document.querySelectorAll(".state-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){ setVoiceMode(btn.dataset.mode); });
   });
   document.querySelectorAll(".word-btn").forEach(function(btn){
     btn.addEventListener("click", function(){
       const word = btn.dataset.word;
-      if (word === "warning") triggerWarning(activeMain);
-      else triggerWordOn(entities[activeMain], word);
+      if (word === "warning"){
+        triggerWarning(activeMain);
+        logMessage(entities[activeMain].name.toUpperCase(), "Warning acknowledged — reviewing.");
+      } else {
+        triggerWordOn(entities[activeMain], word);
+      }
     });
   });
   document.querySelectorAll(".deleg-btn").forEach(function(btn){
@@ -970,11 +1166,72 @@
   document.querySelector('.state-btn[data-mode="idle"]').classList.add("is-active");
 
   /* =================================================================
+     FULL DEMONSTRATION SCENARIO
+     A scripted end-to-end workflow: speak -> S5 decides -> delegates to
+     four specialists -> they work -> a peer (tester<->coder) exchange
+     happens mid-flight -> each specialist returns results to S5 -> S5
+     acknowledges. Purely a choreographed visual sequence.
+  ================================================================= */
+  let demoRunning = false;
+  function runDemoScenario(){
+    if (demoRunning) return;
+    demoRunning = true;
+    const demoBtn = document.getElementById("demoBtn");
+    demoBtn.disabled = true;
+    demoBtn.style.opacity = "0.35";
+
+    logMessage("USER", "Set up authentication for the new service.");
+    setVoiceMode("speak");
+
+    setTimeout(function(){
+      logMessage("LANUX-S5", "Breaking this into implementation, research, testing and repository prep.");
+      delegate(
+        ["coder","researcher","tester","git"],
+        {
+          coder:"Implement authentication flow",
+          researcher:"Research OAuth requirements",
+          tester:"Prepare authentication tests",
+          git:"Prepare repository changes"
+        },
+        15000 // generous work window so the scripted beats below control pacing
+      );
+    }, 900);
+
+    setTimeout(function(){ forceComplete("researcher", "OAuth research complete."); }, 5300);
+    setTimeout(function(){ forceComplete("git", "Repository changes prepared."); }, 6000);
+    setTimeout(function(){ forceComplete("coder", "Implementation complete."); }, 6600);
+
+    setTimeout(function(){
+      logMessage("TESTER → CODER", "Found an issue in the session handling.");
+      spawnStream("tester", "coder", "peer");
+    }, 7900);
+    setTimeout(function(){
+      logMessage("CODER → TESTER", "Fix applied.");
+      spawnStream("coder", "tester", "peer");
+    }, 8500);
+
+    setTimeout(function(){ forceComplete("tester", "Validation complete."); }, 9400);
+
+    setTimeout(function(){
+      logMessage("LANUX-S5", "All results received. Authentication task complete.");
+      setVoiceMode("idle");
+      demoRunning = false;
+      demoBtn.disabled = false;
+      demoBtn.style.opacity = "";
+    }, 11200);
+  }
+  document.getElementById("demoBtn").addEventListener("click", runDemoScenario);
+
+  /* =================================================================
      INIT
   ================================================================= */
   resize();
   updateTopLabel();
+  renderFeed();
+  renderWorkPanel();
+  logMessage("LANUX-S5", "Standing by. Ready for instructions.");
   requestAnimationFrame(frame);
+
 
 })();
 </script>
