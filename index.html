@@ -1,22 +1,34 @@
 <!--
-  LANUX BRAIN — VISUAL PROTOTYPE (v1)
+  LANUX BRAIN — VISUAL PROTOTYPE (v2)
   ------------------------------------
-  This is a standalone, self-contained visual/animation prototype for the
-  future LANUX AI assistant's "brain" (a living, talking sphere).
+  Standalone visual/interaction prototype for LANUX's multi-model "brain":
+  S5 (the controller) plus six specialist models (Coder, Researcher,
+  Planner, Tester, Computer/Automation, Git/Project Ops).
 
-  - Pure HTML + CSS + vanilla JS, no frameworks, no external assets.
-  - Does not touch or reference any other LANUX project file.
-  - No microphone access, no real speech recognition, no real TTS.
-  - All "listening" / "speaking" behaviour is simulated for visual design
-    purposes only, to establish LANUX's movement language before real
-    audio integration happens in a later version.
+  Builds on the V1 sphere technology (Fibonacci particle field, layered
+  projection, orbital rings, luminous core, effect envelopes) and extends
+  it into a multi-entity system with:
+    - a home layout (S5 large + 6 specialists around it)
+    - a focused layout (clicked specialist becomes large, S5 shrinks to
+      a persistent "home" sphere at the top, other specialists rearrange)
+    - animated delegation "energy streams" from S5 to one or many models
+    - per-model task states (idle / receiving / working / returning / complete)
+    - hover + click interaction on every sphere
+    - a warning state with a subtle warm tint instead of the base
+      blue-grey palette
+
+  Pure HTML + CSS + vanilla JS. No frameworks, no external assets.
+  No microphone, no speech recognition, no TTS, no backend, no real
+  model inference — every model "doing work" is a visual simulation only.
+  This file is fully self-contained and does not touch any other
+  LANUX project file.
 -->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>LANUX — Brain Prototype</title>
+<title>LANUX — Brain Prototype v2</title>
 <style>
   :root{
     --c1:#ABBED3;
@@ -29,78 +41,119 @@
   *{ box-sizing:border-box; }
 
   html,body{
-    margin:0;
-    padding:0;
-    width:100%;
-    height:100%;
+    margin:0; padding:0; width:100%; height:100%;
     background:var(--bg);
     overflow:hidden;
     font-family:-apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing:antialiased;
   }
 
-  /* faint vignette so the sphere reads as floating in deep space */
   body::before{
     content:"";
-    position:fixed;
-    inset:0;
-    pointer-events:none;
-    background:radial-gradient(ellipse at 50% 45%, rgba(180,196,214,0.05) 0%, rgba(0,0,0,0) 55%),
+    position:fixed; inset:0; pointer-events:none; z-index:4;
+    background:radial-gradient(ellipse at 50% 42%, rgba(180,196,214,0.05) 0%, rgba(0,0,0,0) 55%),
                radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%);
-    z-index:5;
   }
 
-  canvas#main{
-    position:fixed;
-    inset:0;
-    width:100%;
-    height:100%;
-    display:block;
-    cursor:pointer;
-  }
+  #stage{ position:fixed; inset:0; }
 
-  canvas#mini{
-    position:fixed;
-    left:22px;
-    bottom:22px;
-    width:56px;
-    height:56px;
-    display:block;
+  canvas#main{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+  #overlay{
+    position:absolute; inset:0;
     pointer-events:none;
-    filter:drop-shadow(0 0 10px rgba(171,190,211,0.18));
-    z-index:6;
+    z-index:7;
   }
 
-  .mini-ring{
-    position:fixed;
-    left:22px;
-    bottom:22px;
-    width:56px;
-    height:56px;
+  .model-hit{
+    position:absolute;
+    left:0; top:0;
+    transform:translate(-50%,-50%);
     border-radius:50%;
-    border:1px solid rgba(207,222,234,0.08);
-    pointer-events:none;
-    z-index:6;
+    pointer-events:auto;
+    cursor:pointer;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
   }
 
-  #controls{
-    position:fixed;
-    bottom:26px;
+  .model-label{
+    position:relative;
+    top:8px;
+    text-align:center;
+    font-size:10.5px;
+    letter-spacing:0.22em;
+    color:var(--c4);
+    opacity:0;
+    transform:translateY(4px);
+    transition:opacity .35s ease, transform .35s ease;
+    white-space:nowrap;
+    text-shadow:0 0 12px rgba(207,222,234,0.35);
+  }
+  .model-hit.show-label .model-label{ opacity:0.85; transform:translateY(0); }
+  .model-hit.is-main .model-label{ opacity:0.95; font-size:12px; }
+
+  .model-role{
+    display:block;
+    font-size:8px;
+    letter-spacing:0.18em;
+    color:var(--c3);
+    opacity:0.55;
+    margin-top:2px;
+  }
+
+  .model-task{
+    position:absolute;
+    top:calc(100% + 14px);
     left:50%;
     transform:translateX(-50%);
-    display:flex;
-    flex-wrap:wrap;
-    justify-content:center;
-    gap:6px;
-    max-width:92vw;
-    z-index:10;
+    font-size:10px;
+    letter-spacing:0.02em;
+    color:var(--c3);
+    background:rgba(8,10,13,0.45);
+    border:1px solid rgba(207,222,234,0.10);
+    padding:4px 10px;
+    border-radius:999px;
+    white-space:nowrap;
+    opacity:0;
+    transition:opacity .3s ease;
+    backdrop-filter:blur(6px);
+  }
+  .model-task.show{ opacity:0.92; }
+  .model-task .status{
+    color:var(--c4);
+    letter-spacing:0.14em;
+    margin-right:6px;
+    opacity:0.8;
   }
 
+  #topLabel{
+    position:fixed; top:22px; left:50%; transform:translateX(-50%);
+    color:var(--c3);
+    font-size:10.5px;
+    letter-spacing:0.3em;
+    opacity:0.4;
+    z-index:10;
+    user-select:none;
+    pointer-events:none;
+    text-align:center;
+  }
+  #topLabel .sub{ display:block; font-size:8.5px; letter-spacing:0.22em; opacity:0.7; margin-top:4px; }
+
+  #controls{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    max-width:94vw; z-index:10;
+  }
+  .control-row{
+    display:flex; flex-wrap:wrap; justify-content:center; gap:6px;
+  }
+  .row-caption{
+    font-size:8.5px; letter-spacing:0.24em; color:var(--c3); opacity:0.4;
+    margin-bottom:-2px;
+  }
   #controls .divider{
-    width:1px;
-    align-self:stretch;
-    background:rgba(207,222,234,0.12);
-    margin:2px 4px;
+    width:1px; align-self:stretch; background:rgba(207,222,234,0.12); margin:2px 4px;
   }
 
   button.lx-btn{
@@ -108,9 +161,9 @@
     border:1px solid rgba(207,222,234,0.14);
     background:rgba(207,222,234,0.03);
     color:var(--c4);
-    font-size:11px;
+    font-size:10.5px;
     letter-spacing:0.06em;
-    padding:8px 14px;
+    padding:7px 12px;
     border-radius:999px;
     cursor:pointer;
     backdrop-filter:blur(8px);
@@ -118,474 +171,810 @@
     transition:background .25s ease, border-color .25s ease, transform .15s ease, opacity .25s ease;
     opacity:0.72;
   }
+  button.lx-btn:hover{ opacity:1; background:rgba(207,222,234,0.08); border-color:rgba(207,222,234,0.32); }
+  button.lx-btn:active{ transform:scale(0.94); }
+  button.lx-btn.state-btn.is-active{ opacity:1; background:rgba(207,222,234,0.12); border-color:rgba(207,222,234,0.45); }
+  button.lx-btn.warn-btn{ border-color:rgba(196,150,145,0.25); }
+  button.lx-btn.warn-btn:hover{ background:rgba(196,150,145,0.10); border-color:rgba(196,150,145,0.4); }
+  button.lx-btn.deleg-btn{ font-size:9.5px; }
 
-  button.lx-btn:hover{
-    opacity:1;
-    background:rgba(207,222,234,0.08);
-    border-color:rgba(207,222,234,0.32);
+  .mini-ring{
+    position:fixed; left:22px; bottom:22px; width:56px; height:56px;
+    border-radius:50%; border:1px solid rgba(207,222,234,0.08);
+    pointer-events:none; z-index:6;
+  }
+  canvas#mini{
+    position:fixed; left:22px; bottom:22px; width:56px; height:56px;
+    display:block; pointer-events:none;
+    filter:drop-shadow(0 0 10px rgba(171,190,211,0.18));
+    z-index:6;
+  }
+  #miniLabel{
+    position:fixed; left:22px; bottom:82px;
+    font-size:8.5px; letter-spacing:0.2em; color:var(--c3); opacity:0.45;
+    z-index:6; pointer-events:none;
   }
 
-  button.lx-btn:active{
-    transform:scale(0.94);
-  }
-
-  button.lx-btn.state-btn.is-active{
-    opacity:1;
-    background:rgba(207,222,234,0.12);
-    border-color:rgba(207,222,234,0.45);
-  }
-
-  #label{
-    position:fixed;
-    top:26px;
-    left:50%;
-    transform:translateX(-50%);
-    color:var(--c3);
-    font-size:11px;
-    letter-spacing:0.28em;
-    opacity:0.35;
-    z-index:10;
-    user-select:none;
-    pointer-events:none;
-  }
-
-  @media (max-width:640px){
-    button.lx-btn{ padding:7px 10px; font-size:10px; }
+  @media (max-width:760px){
+    button.lx-btn{ padding:6px 9px; font-size:9.5px; }
+    .model-task{ font-size:9px; padding:3px 8px; }
   }
 </style>
 </head>
 <body>
 
-<div id="label">LANUX</div>
+<div id="topLabel">LANUX<span class="sub" id="topSub">S5 — CENTRAL CONTROLLER</span></div>
 
-<canvas id="main"></canvas>
+<div id="stage">
+  <canvas id="main"></canvas>
+  <div id="overlay"></div>
+</div>
 
 <div class="mini-ring"></div>
 <canvas id="mini"></canvas>
+<div id="miniLabel">LANUX PRESENT</div>
 
 <div id="controls">
-  <button class="lx-btn state-btn" data-mode="idle">IDLE</button>
-  <button class="lx-btn state-btn" data-mode="listen">LISTEN</button>
-  <button class="lx-btn state-btn" data-mode="speak">SPEAK</button>
-  <div class="divider"></div>
-  <button class="lx-btn word-btn" data-word="lanux">LANUX</button>
-  <button class="lx-btn word-btn" data-word="think">THINK</button>
-  <button class="lx-btn word-btn" data-word="search">SEARCH</button>
-  <button class="lx-btn word-btn" data-word="code">CODE</button>
-  <button class="lx-btn word-btn" data-word="warning">WARNING</button>
+  <div class="row-caption">ACTIVE MODEL</div>
+  <div class="control-row">
+    <button class="lx-btn state-btn" data-mode="idle">IDLE</button>
+    <button class="lx-btn state-btn" data-mode="listen">LISTEN</button>
+    <button class="lx-btn state-btn" data-mode="speak">SPEAK</button>
+    <div class="divider"></div>
+    <button class="lx-btn word-btn" data-word="lanux">LANUX</button>
+    <button class="lx-btn word-btn" data-word="think">THINK</button>
+    <button class="lx-btn word-btn" data-word="search">SEARCH</button>
+    <button class="lx-btn word-btn" data-word="code">CODE</button>
+    <button class="lx-btn word-btn warn-btn" data-word="warning">WARNING</button>
+  </div>
+  <div class="row-caption">DELEGATE FROM S5</div>
+  <div class="control-row">
+    <button class="lx-btn deleg-btn" data-deleg="coder">→ CODER</button>
+    <button class="lx-btn deleg-btn" data-deleg="researcher">→ RESEARCHER</button>
+    <button class="lx-btn deleg-btn" data-deleg="planner">→ PLANNER</button>
+    <button class="lx-btn deleg-btn" data-deleg="tester">→ TESTER</button>
+    <button class="lx-btn deleg-btn" data-deleg="computer">→ COMPUTER</button>
+    <button class="lx-btn deleg-btn" data-deleg="git">→ GIT</button>
+    <div class="divider"></div>
+    <button class="lx-btn deleg-btn" data-deleg="all">→ ALL</button>
+  </div>
 </div>
 
 <script>
 (function(){
   "use strict";
 
-  /* ---------------------------------------------------------------
-     PALETTE
-  --------------------------------------------------------------- */
+  /* =================================================================
+     PALETTE & MATH HELPERS
+  ================================================================= */
   const PALETTE = {
-    c1:{r:0xAB,g:0xBE,b:0xD3}, // #ABBED3
-    c2:{r:0xB0,g:0xBF,b:0xD1}, // #B0BFD1
-    c3:{r:0xB9,g:0xC3,b:0xD0}, // #B9C3D0
-    c4:{r:0xCF,g:0xDE,b:0xEA}, // #CFDEEA
+    c1:{r:0xAB,g:0xBE,b:0xD3},
+    c2:{r:0xB0,g:0xBF,b:0xD1},
+    c3:{r:0xB9,g:0xC3,b:0xD0},
+    c4:{r:0xCF,g:0xDE,b:0xEA},
   };
-  function rgba(c, a){ return "rgba(" + Math.round(c.r) + "," + Math.round(c.g) + "," + Math.round(c.b) + "," + a + ")"; }
-  function lerp(a,b,t){ return a + (b-a)*t; }
-  function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
-  function mixColor(c1,c2,t){
-    return { r: lerp(c1.r,c2.r,t), g: lerp(c1.g,c2.g,t), b: lerp(c1.b,c2.b,t) };
-  }
+  const WARN_TINT = {r:196,g:148,b:138}; // subtle warm rose — "requires attention", never bright red
 
-  /* ---------------------------------------------------------------
-     SHARED BRAIN STATE
-     One state object drives both the main sphere and the mini
-     sphere, so they are always perfectly in sync.
-  --------------------------------------------------------------- */
-  const Brain = {
-    mode: "idle",              // idle | listen | speak
-    effect: null,              // active word-effect: {name, start, duration}
-    seedA: Math.random()*1000,
-    seedB: Math.random()*1000,
-    seedC: Math.random()*1000,
-    smoothedAmp: 0.15,         // smoothed overall amplitude (breathing/voice)
-    lastClick: 0,
+  function rgba(c,a){ return "rgba("+Math.round(c.r)+","+Math.round(c.g)+","+Math.round(c.b)+","+a+")"; }
+  function lerp(a,b,t){ return a+(b-a)*t; }
+  function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+  function mixColor(c1,c2,t){ return {r:lerp(c1.r,c2.r,t), g:lerp(c1.g,c2.g,t), b:lerp(c1.b,c2.b,t)}; }
+
+  /* =================================================================
+     MODEL DEFINITIONS
+  ================================================================= */
+  const MODEL_ORDER = ["s5","coder","researcher","planner","tester","computer","git"];
+  const MODEL_META = {
+    s5:         { name:"LANUX S5", role:"CONTROLLER",  variant:"controller",  particles:460 },
+    coder:      { name:"CODER",       role:"SPECIALIST", variant:"structured",  particles:180 },
+    researcher: { name:"RESEARCHER",  role:"SPECIALIST", variant:"flowing",     particles:180 },
+    planner:    { name:"PLANNER",     role:"SPECIALIST", variant:"orbital",     particles:180 },
+    tester:     { name:"TESTER",      role:"SPECIALIST", variant:"pulse",       particles:170 },
+    computer:   { name:"COMPUTER",    role:"SPECIALIST", variant:"mechanical",  particles:170 },
+    git:        { name:"GIT / OPS",   role:"SPECIALIST", variant:"branching",   particles:170 },
+  };
+  const TASKS = {
+    coder:      "Modify authentication system",
+    researcher: "Research OAuth requirements",
+    planner:    "Plan sprint roadmap",
+    tester:     "Test authentication flow",
+    computer:   "Run automated build",
+    git:        "Prepare repository changes",
+  };
+  const VARIANTS = {
+    controller: { jitterMul:0.65, structuredBase:0,    ringCount:4, ringProminence:1.35, pulseFreq:0,   rotSpeed:0.050, asym:true,  extraShell:true },
+    structured: { jitterMul:0.22, structuredBase:0.22, ringCount:3, ringProminence:0.85, pulseFreq:0,   rotSpeed:0.085, asym:false },
+    flowing:    { jitterMul:1.45, structuredBase:0,    ringCount:2, ringProminence:0.70, pulseFreq:0,   rotSpeed:0.070, asym:false },
+    orbital:    { jitterMul:0.45, structuredBase:0,    ringCount:4, ringProminence:1.45, pulseFreq:0,   rotSpeed:0.095, asym:false },
+    pulse:      { jitterMul:0.55, structuredBase:0,    ringCount:3, ringProminence:0.95, pulseFreq:1.7, rotSpeed:0.100, asym:false },
+    mechanical: { jitterMul:0.18, structuredBase:0.10, ringCount:3, ringProminence:1.00, pulseFreq:0,   rotSpeed:0.140, asym:false, sweep:true },
+    branching:  { jitterMul:0.48, structuredBase:0.06, ringCount:3, ringProminence:1.00, pulseFreq:0,   rotSpeed:0.080, asym:false, branchBlink:true },
   };
 
   const EFFECT_DURATIONS = {
-    lanux:   700,
-    think:   1900,
-    search:  1600,
-    code:    1700,
-    warning: 2000,
-    click:   500
+    lanux:700, think:1900, search:1600, code:1700, warning:2600,
+    click:500, notice:380, decision:900, ack:600, complete:750
   };
 
-  function setMode(mode){
-    Brain.mode = mode;
-    document.querySelectorAll(".state-btn").forEach(function(b){
-      b.classList.toggle("is-active", b.dataset.mode === mode);
-    });
-  }
-
-  function triggerWord(name){
-    Brain.effect = { name: name, start: performance.now(), duration: EFFECT_DURATIONS[name] || 1200 };
-  }
-
-  /* ---------------------------------------------------------------
-     BASE AMPLITUDE PER MODE
-     A continuous signal (0..~1) representing "how alive / active"
-     the sphere is right now. Idle breathes gently; listen is more
-     irregular (simulated mic energy); speak is smoother / more
-     rhythmic (simulated voice waveform).
-  --------------------------------------------------------------- */
-  function baseAmplitude(mode, t, seedA, seedB){
-    if (mode === "listen"){
-      const n = 0.5*Math.sin(t*2.1 + seedA)
-              + 0.30*Math.sin(t*3.7 + seedB*1.3)
-              + 0.20*Math.sin(t*5.9 + seedA*0.6);
-      return clamp(0.42 + n*0.55, 0.08, 1.15);
+  /* =================================================================
+     PARTICLE FIELD (Fibonacci sphere)
+  ================================================================= */
+  function buildParticles(count){
+    const arr = [];
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    for (let i=0;i<count;i++){
+      const yv = 1 - (i/(count-1))*2;
+      const rAtY = Math.sqrt(Math.max(0,1-yv*yv));
+      const theta = golden*i;
+      const x = Math.cos(theta)*rAtY, z = Math.sin(theta)*rAtY, y = yv;
+      arr.push({
+        x0:x, y0:y, z0:z, theta:theta, phi:Math.acos(clamp(yv,-1,1)),
+        seed1:Math.random()*Math.PI*2, seed2:Math.random()*Math.PI*2,
+        freq1:0.5+Math.random()*0.6, freq2:0.3+Math.random()*0.5,
+        distIndex:i/count, group:i%24
+      });
     }
-    if (mode === "speak"){
-      const n = 0.55*Math.sin(t*1.7 + seedB)
-              + 0.30*Math.sin(t*3.1 + seedA*0.8)
-              + 0.15*Math.sin(t*0.9 + seedB*1.6);
-      return clamp(0.40 + n*0.48, 0.08, 1.05);
-    }
-    // idle
-    return 0.14 + 0.05*Math.sin(t*0.55 + seedA) + 0.02*Math.sin(t*1.3 + seedB);
+    return arr;
+  }
+  function structuredVector(p){
+    const latSteps=9, lonSteps=14;
+    const phiSnap = Math.round(p.phi/(Math.PI/latSteps))*(Math.PI/latSteps);
+    const thetaSnap = Math.round(p.theta/(Math.PI*2/lonSteps))*(Math.PI*2/lonSteps);
+    const sy=Math.cos(phiSnap), rAtY=Math.sin(phiSnap);
+    return { x:Math.cos(thetaSnap)*rAtY, y:sy, z:Math.sin(thetaSnap)*rAtY };
   }
 
-  /* ---------------------------------------------------------------
-     WORD-EFFECT ENVELOPES
-     Each returns a small bundle of extra parameters, purely a
-     function of progress p (0..1), layered on top of the base
-     rendering for the duration of the effect.
-  --------------------------------------------------------------- */
-  function effectParams(name, p){
-    const out = {
-      ampAdd: 0,        // added to base amplitude
-      coreAdd: 0,       // added core brightness
-      ringAdd: 0,       // added ring radius offset
-      structured: 0,    // 0..1 pull toward geometric grid formation
-      spiral: 0,        // 0..1 inward spiral pull
-      ripple: 0,        // 0..1 outward ripple strength
-      ripplePhase: 0,
-      rotBoost: 0,       // extra rotation speed
-      flash: 0           // sharp core/edge flash
+  /* =================================================================
+     ENTITY MODEL
+  ================================================================= */
+  const entities = {};
+  MODEL_ORDER.forEach(function(id){
+    const meta = MODEL_META[id];
+    const e = {
+      id:id, name:meta.name, role:meta.role, variant:VARIANTS[meta.variant],
+      particles: buildParticles(meta.particles),
+      cur:{x:0,y:0,r:10}, target:{x:0,y:0,r:10},
+      hoverOffset:{x:0,y:0}, hoverBoost:0, hovered:false,
+      mode:"idle", effect:null,
+      taskState:"idle", taskText:"", workUntil:0,
+      tintUntil:0, tintDuration:0,
+      smoothedAmp: id==="s5" ? 0.16 : 0.12,
+      seedA:Math.random()*1000, seedB:Math.random()*1000, seedC:Math.random()*1000,
+      branchAt:0, branchGroup:0
     };
+    if (id==="s5"){
+      e.innerParticles = e.particles.filter(function(_,i){ return i%2===0; });
+    }
+    entities[id] = e;
+  });
 
-    if (name === "lanux"){
-      // sharp pulse, quick ring expansion, settle
+  let activeMain = "s5";
+  const streams = [];       // delegation energy streams
+  const systemPulses = [];  // authoritative system-wide warning rings
+
+  /* =================================================================
+     EFFECT ENVELOPES
+  ================================================================= */
+  function effectParams(name, p){
+    const out = { ampAdd:0, coreAdd:0, ringAdd:0, structured:0, spiral:0, ripple:0, ripplePhase:0, rotBoost:0, flash:0, tint:0 };
+
+    if (name==="lanux" || name==="complete"){
       const e = Math.exp(-p*7.5);
-      out.flash = e;
-      out.coreAdd = e * 0.9;
-      out.ringAdd = Math.sin(p*Math.PI) * 0.35;
-      out.ampAdd = e * 0.5;
+      out.flash=e; out.coreAdd=e*0.9; out.ringAdd=Math.sin(p*Math.PI)*0.35; out.ampAdd=e*0.5;
       return out;
     }
-
-    if (name === "think"){
-      // particles spiral inward, core intensifies, releases outward
-      const inPhase = clamp(p/0.5, 0, 1);
-      const outPhase = clamp((p-0.5)/0.5, 0, 1);
-      out.spiral = Math.sin(inPhase*Math.PI) * (1-outPhase*0.3);
-      out.coreAdd = Math.sin(clamp(p/0.7,0,1)*Math.PI) * 0.8;
-      out.rotBoost = (1-p) * 1.8;
-      out.ampAdd = -0.05 * (1-outPhase) + outPhase*0.15;
+    if (name==="think"){
+      const inPhase=clamp(p/0.5,0,1), outPhase=clamp((p-0.5)/0.5,0,1);
+      out.spiral=Math.sin(inPhase*Math.PI)*(1-outPhase*0.3);
+      out.coreAdd=Math.sin(clamp(p/0.7,0,1)*Math.PI)*0.8;
+      out.rotBoost=(1-p)*1.8;
+      out.ampAdd=-0.05*(1-outPhase)+outPhase*0.15;
       return out;
     }
-
-    if (name === "search"){
-      // outward ripple travelling through the sphere
-      out.ripple = Math.sin(p*Math.PI); // rises then falls
-      out.ripplePhase = p;
-      out.coreAdd = 0.25 * (1-p);
-      out.ampAdd = 0.1 * Math.sin(p*Math.PI);
+    if (name==="search"){
+      out.ripple=Math.sin(p*Math.PI); out.ripplePhase=p;
+      out.coreAdd=0.25*(1-p); out.ampAdd=0.1*Math.sin(p*Math.PI);
       return out;
     }
-
-    if (name === "code"){
-      // structured / geometric, several rapid controlled pulses
-      out.structured = Math.sin(p*Math.PI) ;
-      const pulses = Math.sin(p * Math.PI * 9);
-      out.ampAdd = Math.max(0, pulses) * 0.28 * (1-p*0.4);
-      out.coreAdd = Math.max(0, pulses) * 0.35;
-      out.ringAdd = 0.06 * Math.max(0, pulses);
+    if (name==="code"){
+      out.structured=Math.sin(p*Math.PI);
+      const pulses=Math.sin(p*Math.PI*9);
+      out.ampAdd=Math.max(0,pulses)*0.28*(1-p*0.4);
+      out.coreAdd=Math.max(0,pulses)*0.35;
+      out.ringAdd=0.06*Math.max(0,pulses);
       return out;
     }
-
-    if (name === "warning"){
-      // strong compression/expansion, more intense but still on-palette
-      const cyc = Math.sin(p * Math.PI * 2.4 - Math.PI/2); // compress/expand cycles
-      out.ampAdd = cyc * 0.55 * (1 - p*0.25);
-      out.coreAdd = Math.max(0, cyc) * 0.7;
-      out.ringAdd = cyc * 0.22;
-      out.flash = Math.max(0, -cyc) * 0.4;
+    if (name==="warning"){
+      const warmth=Math.sin(p*Math.PI);
+      const cyc=Math.sin(p*Math.PI*3)*(1-p*0.3);
+      out.ampAdd=cyc*0.5; out.coreAdd=Math.max(0,cyc)*0.6+warmth*0.15;
+      out.ringAdd=cyc*0.24; out.flash=Math.max(0,-cyc)*0.25;
+      out.tint=warmth;
       return out;
     }
-
-    if (name === "click"){
-      const e = Math.exp(-p*9);
-      out.ampAdd = e*0.3;
-      out.coreAdd = e*0.5;
-      out.ringAdd = Math.sin(p*Math.PI)*0.15;
+    if (name==="click"){
+      const e=Math.exp(-p*9);
+      out.ampAdd=e*0.3; out.coreAdd=e*0.5; out.ringAdd=Math.sin(p*Math.PI)*0.15;
       return out;
     }
-
+    if (name==="notice"){
+      const e=Math.exp(-p*10);
+      out.flash=e*0.35; out.coreAdd=e*0.25; out.ampAdd=e*0.15;
+      return out;
+    }
+    if (name==="decision"){
+      const env=Math.sin(p*Math.PI);
+      out.coreAdd=env*1.0; out.ringAdd=-0.12*env+0.05*Math.sin(p*Math.PI*2);
+      out.ampAdd=env*0.25; out.flash=env*0.15;
+      return out;
+    }
+    if (name==="ack"){
+      const env=Math.sin(p*Math.PI);
+      out.coreAdd=env*0.55; out.ampAdd=env*0.15; out.ringAdd=env*0.10;
+      return out;
+    }
     return out;
   }
 
-  /* ---------------------------------------------------------------
-     PARTICLE FIELD (Fibonacci sphere distribution)
-  --------------------------------------------------------------- */
-  const PARTICLE_COUNT = 460;
-  const particles = [];
-  (function buildParticles(){
-    const golden = Math.PI * (3 - Math.sqrt(5));
-    for (let i=0;i<PARTICLE_COUNT;i++){
-      const yv = 1 - (i/(PARTICLE_COUNT-1))*2;
-      const rAtY = Math.sqrt(Math.max(0, 1 - yv*yv));
-      const theta = golden * i;
-      const x = Math.cos(theta)*rAtY;
-      const z = Math.sin(theta)*rAtY;
-      const y = yv;
-      particles.push({
-        x0:x, y0:y, z0:z,
-        theta: theta,
-        phi: Math.acos(clamp(yv,-1,1)),
-        seed1: Math.random()*Math.PI*2,
-        seed2: Math.random()*Math.PI*2,
-        freq1: 0.5 + Math.random()*0.6,
-        freq2: 0.3 + Math.random()*0.5,
-        distIndex: i / PARTICLE_COUNT
+  function triggerWordOn(entity, name){
+    entity.effect = { name:name, start:performance.now(), duration:EFFECT_DURATIONS[name]||1200 };
+  }
+
+  function triggerWarning(entityId){
+    const e = entities[entityId];
+    triggerWordOn(e, "warning");
+    e.tintDuration = EFFECT_DURATIONS.warning;
+    e.tintUntil = performance.now() + e.tintDuration;
+    if (entityId === "s5"){
+      systemPulses.push({ x:e.cur.x, y:e.cur.y, start:performance.now(), duration:1500 });
+      MODEL_ORDER.forEach(function(id){
+        if (id==="s5") return;
+        entities[id].tintDuration = 1100;
+        entities[id].tintUntil = Math.max(entities[id].tintUntil, performance.now()+1100);
       });
     }
-  })();
-
-  /* structured/grid target: snap theta/phi to a coarse lat/long grid
-     to create a more geometric, "engineered" look for CODE effect */
-  function structuredVector(p){
-    const latSteps = 9, lonSteps = 14;
-    const phiSnap = Math.round(p.phi / (Math.PI/latSteps)) * (Math.PI/latSteps);
-    const thetaSnap = Math.round(p.theta / (Math.PI*2/lonSteps)) * (Math.PI*2/lonSteps);
-    const sy = Math.cos(phiSnap);
-    const rAtY = Math.sin(phiSnap);
-    const sx = Math.cos(thetaSnap)*rAtY;
-    const sz = Math.sin(thetaSnap)*rAtY;
-    return {x:sx,y:sy,z:sz};
   }
 
-  /* ---------------------------------------------------------------
-     RENDERER
-     A single function renders one sphere (main or mini) into a
-     given canvas context, at a given size, using the shared Brain
-     state plus a local rotation phase so main/mini feel connected
-     but not robotically identical.
-  --------------------------------------------------------------- */
-  function renderSphere(ctx, w, h, opts){
-    const t = performance.now()/1000;
-    const cx = w/2, cy = h/2;
-    const baseR = Math.min(w,h) * (opts.radiusFactor || 0.30);
+  /* =================================================================
+     BASE AMPLITUDE
+  ================================================================= */
+  function baseAmplitude(mode, t, seedA, seedB, variant){
+    let base;
+    if (mode==="listen"){
+      const n=0.5*Math.sin(t*2.1+seedA)+0.30*Math.sin(t*3.7+seedB*1.3)+0.20*Math.sin(t*5.9+seedA*0.6);
+      base = clamp(0.42+n*0.55, 0.08, 1.15);
+    } else if (mode==="speak"){
+      const n=0.55*Math.sin(t*1.7+seedB)+0.30*Math.sin(t*3.1+seedA*0.8)+0.15*Math.sin(t*0.9+seedB*1.6);
+      base = clamp(0.40+n*0.48, 0.08, 1.05);
+    } else {
+      base = 0.14+0.05*Math.sin(t*0.55+seedA)+0.02*Math.sin(t*1.3+seedB);
+    }
+    if (variant.pulseFreq){
+      base += Math.max(0, Math.sin(t*variant.pulseFreq*2*Math.PI + seedA)) * 0.09;
+    }
+    return base;
+  }
 
-    // ---- effect progress ----
-    let fx = { ampAdd:0, coreAdd:0, ringAdd:0, structured:0, spiral:0, ripple:0, ripplePhase:0, rotBoost:0, flash:0 };
-    if (Brain.effect){
-      const now = performance.now();
-      const p = clamp((now - Brain.effect.start) / Brain.effect.duration, 0, 1);
-      fx = effectParams(Brain.effect.name, p);
-      if (p >= 1) Brain.effect = null;
+  /* =================================================================
+     LAYOUT
+  ================================================================= */
+  function computeLayout(){
+    const W = mainCanvas.clientWidth, H = mainCanvas.clientHeight;
+    const m = Math.min(W,H);
+    const specialists = MODEL_ORDER.filter(function(id){ return id!=="s5"; });
+
+    if (activeMain === "s5"){
+      entities.s5.target = { x:W*0.5, y:H*0.46, r:m*0.155 };
+      const orbitR = m*0.335;
+      specialists.forEach(function(id, idx){
+        const angle = -Math.PI/2 + idx*(Math.PI*2/specialists.length);
+        entities[id].target = {
+          x: W*0.5 + Math.cos(angle)*orbitR,
+          y: H*0.46 + Math.sin(angle)*orbitR*0.74,
+          r: m*0.052
+        };
+      });
+    } else {
+      const mainId = activeMain;
+      entities[mainId].target = { x:W*0.5, y:H*0.56, r:m*0.145 };
+      entities.s5.target = { x:W*0.5, y:H*0.15, r:m*0.05 };
+      const others = specialists.filter(function(id){ return id!==mainId; });
+      const orbitR = m*0.30;
+      others.forEach(function(id, idx){
+        const angle = -Math.PI/2 + idx*(Math.PI*2/others.length) + 0.28;
+        entities[id].target = {
+          x: W*0.5 + Math.cos(angle)*orbitR,
+          y: H*0.63 + Math.sin(angle)*orbitR*0.62,
+          r: m*0.044
+        };
+      });
+    }
+  }
+
+  function setActiveMain(id){
+    if (activeMain === id) return;
+    activeMain = id;
+    computeLayout();
+    updateTopLabel();
+  }
+
+  function updateTopLabel(){
+    const e = entities[activeMain];
+    topSub.textContent = activeMain==="s5" ? "S5 — CENTRAL CONTROLLER" : e.name + " — ACTIVE MODEL";
+  }
+
+  /* =================================================================
+     DELEGATION
+  ================================================================= */
+  function spawnStream(fromId, toId, kind, taskText){
+    streams.push({
+      fromId:fromId, toId:toId, kind:kind,
+      start:performance.now(), duration: 900,
+      taskText: taskText || "", workDuration: 4200
+    });
+  }
+
+  function delegate(ids){
+    const s5 = entities.s5;
+    triggerWordOn(s5, "decision");
+    ids.forEach(function(id, idx){
+      setTimeout(function(){
+        entities[id].taskState = "receiving";
+        spawnStream("s5", id, "out", TASKS[id]);
+      }, 450 + idx*160);
+    });
+  }
+
+  function handleStreamArrival(s){
+    if (s.kind === "out"){
+      const target = entities[s.toId];
+      target.taskState = "receiving";
+      target.taskText = s.taskText;
+      triggerWordOn(target, "lanux");
+      target.workUntil = performance.now() + s.workDuration;
+      setTimeout(function(){
+        if (target.taskState === "receiving") target.taskState = "working";
+      }, 350);
+    } else {
+      const src = entities[s.fromId];
+      triggerWordOn(entities.s5, "ack");
+      src.taskState = "complete";
+      triggerWordOn(src, "complete");
+      src.taskText = "";
+      setTimeout(function(){
+        if (src.taskState === "complete") src.taskState = "idle";
+      }, 700);
+    }
+  }
+
+  /* =================================================================
+     RENDER — one shared function draws any sphere entity, at any
+     canvas / center / radius. Used for all 7 main-canvas spheres AND
+     for the bottom-left mini sphere (which mirrors whichever entity
+     is currently active).
+  ================================================================= */
+  function drawSphereVisual(ctx, cx, cy, baseR, entity, opts){
+    opts = opts || {};
+    const t = performance.now()/1000;
+    const now = performance.now();
+    const variant = entity.variant;
+
+    let fx = { ampAdd:0, coreAdd:0, ringAdd:0, structured:0, spiral:0, ripple:0, ripplePhase:0, rotBoost:0, flash:0, tint:0 };
+    if (entity.effect){
+      const p = clamp((now-entity.effect.start)/entity.effect.duration, 0, 1);
+      fx = effectParams(entity.effect.name, p);
+      if (p>=1) entity.effect=null;
     }
 
-    // ---- amplitude (breathing / voice) ----
-    const rawAmp = baseAmplitude(Brain.mode, t, Brain.seedA, Brain.seedB) + fx.ampAdd;
-    Brain.smoothedAmp = lerp(Brain.smoothedAmp, rawAmp, 0.12);
-    const amp = clamp(Brain.smoothedAmp, 0, 1.3);
+    const workingBoost = entity.taskState==="working" ? 0.22
+      : (entity.taskState==="receiving"||entity.taskState==="returning") ? 0.12 : 0;
 
-    const breathe = 1 + amp*0.16;
+    const rawAmp = baseAmplitude(entity.mode, t, entity.seedA, entity.seedB, variant) + fx.ampAdd + workingBoost + (opts.hoverBoost||0)*0.10;
+    entity.smoothedAmp = lerp(entity.smoothedAmp, rawAmp, 0.12);
+    const amp = clamp(entity.smoothedAmp, 0, 1.35);
+
+    const hoverScale = 1 + (entity.hoverBoost||0)*0.10;
+    const breathe = (1 + amp*0.16) * hoverScale;
     const sphereR = baseR * breathe;
 
-    // ---- rotation ----
-    const rotSpeed = 0.09 + fx.rotBoost*0.35 + (Brain.mode!=="idle" ? 0.05 : 0);
-    const rotY = t * rotSpeed + (opts.phaseOffset||0);
-    const rotX = Math.sin(t*0.13 + (opts.phaseOffset||0)) * 0.32;
+    const rotSpeed = variant.rotSpeed + fx.rotBoost*0.35 + (entity.mode!=="idle" ? 0.04 : 0);
+    const rotY = t*rotSpeed + entity.seedC*0.001 + (opts.phaseOffset||0);
+    let rotX = Math.sin(t*0.13 + entity.seedA*0.01) * 0.32;
+    if (variant.asym) rotX += Math.sin(t*0.31 + entity.seedB*0.01) * 0.13;
 
-    const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
-    const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+    const cosY=Math.cos(rotY), sinY=Math.sin(rotY), cosX=Math.cos(rotX), sinX=Math.sin(rotX);
 
-    // ---- background clear ----
-    ctx.clearRect(0,0,w,h);
+    // tint blend (warning warmth)
+    let tintAmount = 0;
+    if (entity.tintUntil && now < entity.tintUntil && entity.tintDuration){
+      tintAmount = clamp((entity.tintUntil-now)/entity.tintDuration, 0, 1);
+    }
+    tintAmount = Math.max(tintAmount, fx.tint*0.6);
+    const c1 = tintAmount>0.001 ? mixColor(PALETTE.c1, WARN_TINT, tintAmount*0.55) : PALETTE.c1;
+    const c3 = tintAmount>0.001 ? mixColor(PALETTE.c3, WARN_TINT, tintAmount*0.5) : PALETTE.c3;
+    const c4 = tintAmount>0.001 ? mixColor(PALETTE.c4, WARN_TINT, tintAmount*0.4) : PALETTE.c4;
 
-    // ---- outer atmospheric glow ----
-    const glowFlicker = 0.85 + 0.15*Math.sin(t*3.2 + Brain.seedC) * (0.4+amp);
-    const outerGlowR = sphereR * (1.9 + amp*0.4);
-    const gGrad = ctx.createRadialGradient(cx,cy, sphereR*0.4, cx,cy, outerGlowR);
-    gGrad.addColorStop(0, rgba(PALETTE.c1, 0.10*glowFlicker + fx.flash*0.15));
-    gGrad.addColorStop(0.5, rgba(PALETTE.c2, 0.045*glowFlicker));
+    // outer glow
+    const glowFlicker = 0.85 + 0.15*Math.sin(t*3.2+entity.seedC)*(0.4+amp);
+    const outerGlowR = sphereR*(1.9+amp*0.4);
+    const gGrad = ctx.createRadialGradient(cx,cy,sphereR*0.4, cx,cy,outerGlowR);
+    gGrad.addColorStop(0, rgba(c1, 0.10*glowFlicker + fx.flash*0.15));
+    gGrad.addColorStop(0.5, rgba(c3, 0.045*glowFlicker));
     gGrad.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = gGrad;
-    ctx.beginPath();
-    ctx.arc(cx,cy,outerGlowR,0,Math.PI*2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(cx,cy,outerGlowR,0,Math.PI*2); ctx.fill();
 
-    // ---- orbital rings ----
-    const ringSpecs = [
-      { rMul: 1.28, tiltX: 0.55, speed: 0.16, dir: 1,  alpha: 0.16 },
-      { rMul: 1.42, tiltX: -0.35, speed: 0.10, dir: -1, alpha: 0.10 },
-      { rMul: 1.16, tiltX: 0.15, speed: 0.24, dir: 1,  alpha: 0.12 }
-    ];
-    ringSpecs.forEach(function(r, idx){
-      const ringR = sphereR * r.rMul * (1 + fx.ringAdd*0.5);
-      const ringRotY = t * r.speed * r.dir + idx*1.7 + (opts.phaseOffset||0);
-      const squash = 0.30 + 0.25*Math.sin(r.tiltX + Math.sin(t*0.07+idx));
+    // rings
+    const ringCount = variant.ringCount;
+    for (let idx=0; idx<ringCount; idx++){
+      const rMul = 1.12 + idx*0.12;
+      const tiltBase = 0.15 + idx*0.22;
+      const speed = 0.08 + idx*0.045;
+      const dir = idx%2===0 ? 1 : -1;
+      const ringR = sphereR * rMul * (1 + fx.ringAdd*0.5) * variant.ringProminence;
+      const ringRotY = t*speed*dir + idx*1.7 + (opts.phaseOffset||0) + entity.seedB*0.001;
+      const squash = 0.28 + 0.24*Math.sin(tiltBase + Math.sin(t*0.07+idx+entity.seedA*0.001));
       ctx.save();
-      ctx.translate(cx, cy);
+      ctx.translate(cx,cy);
       ctx.rotate(ringRotY*0.15);
-      ctx.scale(1, Math.max(0.12, Math.abs(squash)));
-      ctx.beginPath();
-      ctx.arc(0,0, ringR, 0, Math.PI*2);
-      ctx.strokeStyle = rgba(PALETTE.c3, r.alpha + fx.flash*0.2 + amp*0.05);
-      ctx.lineWidth = Math.max(0.6, (opts.lineScale||1) * 0.9);
+      ctx.scale(1, Math.max(0.10, Math.abs(squash)));
+      ctx.beginPath(); ctx.arc(0,0,ringR,0,Math.PI*2);
+      ctx.strokeStyle = rgba(c3, (0.12+idx*0.01) + fx.flash*0.2 + amp*0.05);
+      ctx.lineWidth = Math.max(0.6, (opts.lineScale||1)*0.9);
       ctx.stroke();
       ctx.restore();
-    });
-
-    // ---- particles ----
-    const projected = [];
-    for (let i=0;i<particles.length;i++){
-      const p = particles[i];
-
-      // organic per-particle drift (never a plain uniform spin)
-      const drift = 1 + 0.05*Math.sin(t*p.freq1 + p.seed1)*(0.4+amp)
-                      + 0.03*Math.sin(t*p.freq2 + p.seed2 + i*0.01);
-
-      // blend toward structured grid formation (CODE effect)
-      let vx = p.x0, vy = p.y0, vz = p.z0;
-      if (fx.structured > 0.001){
-        const sv = structuredVector(p);
-        vx = lerp(vx, sv.x, fx.structured);
-        vy = lerp(vy, sv.y, fx.structured);
-        vz = lerp(vz, sv.z, fx.structured);
-      }
-
-      // spiral inward pull (THINK effect)
-      let radialScale = drift;
-      if (fx.spiral > 0.001){
-        radialScale *= (1 - fx.spiral*0.45);
-      }
-
-      // outward ripple travelling from core to edge (SEARCH effect)
-      if (fx.ripple > 0.001){
-        const wave = Math.sin((p.distIndex*10 - fx.ripplePhase*14));
-        radialScale *= (1 + Math.max(0,wave) * fx.ripple * 0.35);
-      }
-
-      // overall breathing amplitude push
-      radialScale *= (1 + amp*0.10);
-
-      const rad = sphereR * radialScale;
-
-      // rotate around Y then tilt around X
-      let rx = vx*cosY - vz*sinY;
-      let rz = vx*sinY + vz*cosY;
-      let ry = vy*cosX - rz*sinX;
-      rz = vy*sinX + rz*cosX;
-
-      const sx = cx + rx*rad;
-      const sy = cy + ry*rad;
-      const depth = (rz + 1) / 2; // 0..1, 1 = toward viewer
-
-      projected.push({sx:sx, sy:sy, depth:depth, i:i});
     }
 
-    projected.sort(function(a,b){ return a.depth - b.depth; });
-
-    for (let k=0;k<projected.length;k++){
-      const pr = projected[k];
-      const size = lerp(0.55, 2.1, pr.depth) * (opts.particleScale || 1);
-      const alpha = lerp(0.10, 0.85, pr.depth) * (0.55 + amp*0.5);
-      const col = mixColor(PALETTE.c1, PALETTE.c4, pr.depth*0.7 + fx.flash*0.3);
+    // mechanical "sweep" beam
+    if (variant.sweep){
+      const sweepAngle = t*1.15 + entity.seedA*0.01;
+      ctx.save();
+      ctx.translate(cx,cy);
+      ctx.rotate(sweepAngle);
       ctx.beginPath();
-      ctx.fillStyle = rgba(col, clamp(alpha,0,1));
-      ctx.arc(pr.sx, pr.sy, size, 0, Math.PI*2);
-      ctx.fill();
+      ctx.arc(0,0, sphereR*1.2, -0.22, 0.22);
+      ctx.strokeStyle = rgba(c4, 0.30 + fx.flash*0.2);
+      ctx.lineWidth = Math.max(0.8,(opts.lineScale||1)*1.1);
+      ctx.stroke();
+      ctx.restore();
     }
 
-    // ---- luminous core ----
-    const coreBrightness = clamp(0.55 + amp*0.5 + fx.coreAdd, 0, 1.6);
-    const coreR = sphereR * (0.16 + coreBrightness*0.05);
+    // branch blink window
+    let branchWindow = -1;
+    if (variant.branchBlink && entity.branchAt){
+      const dt = now - entity.branchAt;
+      if (dt>=0 && dt<300) branchWindow = 1 - dt/300;
+    }
+
+    function projectAndDraw(list, radiusMul, colorLean, sizeMul){
+      const projected = [];
+      for (let i=0;i<list.length;i++){
+        const p = list[i];
+        const drift = 1 + 0.05*variant.jitterMul*Math.sin(t*p.freq1+p.seed1)*(0.4+amp)
+                        + 0.03*variant.jitterMul*Math.sin(t*p.freq2+p.seed2+i*0.01);
+
+        let vx=p.x0, vy=p.y0, vz=p.z0;
+        const structAmt = clamp(variant.structuredBase + fx.structured, 0, 1);
+        if (structAmt > 0.001){
+          const sv = structuredVector(p);
+          vx = lerp(vx, sv.x, structAmt);
+          vy = lerp(vy, sv.y, structAmt);
+          vz = lerp(vz, sv.z, structAmt);
+        }
+
+        let radialScale = drift;
+        if (fx.spiral>0.001) radialScale *= (1 - fx.spiral*0.45);
+        if (fx.ripple>0.001){
+          const wave = Math.sin((p.distIndex*10 - fx.ripplePhase*14));
+          radialScale *= (1 + Math.max(0,wave)*fx.ripple*0.35);
+        }
+        radialScale *= (1 + amp*0.10);
+        radialScale *= radiusMul;
+
+        const rad = sphereR * radialScale;
+        let rx = vx*cosY - vz*sinY;
+        let rz = vx*sinY + vz*cosY;
+        let ry = vy*cosX - rz*sinX;
+        rz = vy*sinX + rz*cosX;
+
+        const sx = cx + rx*rad, sy = cy + ry*rad;
+        const depth = (rz+1)/2;
+        let extraAlpha = 0;
+        if (branchWindow>0 && p.group===entity.branchGroup) extraAlpha = 0.5*branchWindow;
+
+        projected.push({sx:sx, sy:sy, depth:depth, extraAlpha:extraAlpha});
+      }
+      projected.sort(function(a,b){ return a.depth-b.depth; });
+      for (let k=0;k<projected.length;k++){
+        const pr = projected[k];
+        const size = lerp(0.55,2.1,pr.depth) * (opts.particleScale||1) * sizeMul;
+        const alpha = clamp((lerp(0.10,0.85,pr.depth)*(0.55+amp*0.5)) + pr.extraAlpha, 0, 1);
+        const col = mixColor(colorLean===1?c1:c1, c4, pr.depth*0.7 + fx.flash*0.3);
+        ctx.beginPath();
+        ctx.fillStyle = rgba(col, alpha);
+        ctx.arc(pr.sx, pr.sy, size, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    projectAndDraw(entity.particles, 1, 1, 1);
+    if (variant.extraShell && entity.innerParticles){
+      projectAndDraw(entity.innerParticles, 0.52, 1, 0.85);
+    }
+
+    // core
+    const coreBrightness = clamp(0.55 + amp*0.5 + fx.coreAdd, 0, 1.7);
+    const coreR = sphereR*(0.16+coreBrightness*0.05);
     const coreGrad = ctx.createRadialGradient(cx,cy,0, cx,cy, coreR*2.4);
-    coreGrad.addColorStop(0, rgba(PALETTE.c4, clamp(0.95*coreBrightness,0,1)));
-    coreGrad.addColorStop(0.35, rgba(PALETTE.c3, clamp(0.5*coreBrightness,0,1)));
+    coreGrad.addColorStop(0, rgba(c4, clamp(0.95*coreBrightness,0,1)));
+    coreGrad.addColorStop(0.35, rgba(c3, clamp(0.5*coreBrightness,0,1)));
     coreGrad.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = coreGrad;
-    ctx.beginPath();
-    ctx.arc(cx,cy, coreR*2.4, 0, Math.PI*2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(cx,cy,coreR*2.4,0,Math.PI*2); ctx.fill();
 
     ctx.beginPath();
-    ctx.fillStyle = rgba(PALETTE.c4, clamp(0.9*coreBrightness,0,1));
-    ctx.arc(cx,cy, coreR*0.55, 0, Math.PI*2);
-    ctx.fill();
+    ctx.fillStyle = rgba(c4, clamp(0.9*coreBrightness,0,1));
+    ctx.arc(cx,cy,coreR*0.55,0,Math.PI*2); ctx.fill();
   }
 
-  /* ---------------------------------------------------------------
+  /* =================================================================
+     STREAMS & SYSTEM PULSES (drawn on main canvas only)
+  ================================================================= */
+  function drawStreams(ctx){
+    for (let i=streams.length-1;i>=0;i--){
+      const s = streams[i];
+      const p = clamp((performance.now()-s.start)/s.duration, 0, 1);
+      const from = entities[s.fromId], to = entities[s.toId];
+      const x0=from.cur.x, y0=from.cur.y, x1=to.cur.x, y1=to.cur.y;
+      const mx=(x0+x1)/2, my=(y0+y1)/2 - Math.abs(x1-x0)*0.12 - 20;
+
+      function bez(tt){
+        const it=1-tt;
+        return {
+          x: it*it*x0 + 2*it*tt*mx + tt*tt*x1,
+          y: it*it*y0 + 2*it*tt*my + tt*tt*y1
+        };
+      }
+
+      // faint guide path
+      ctx.beginPath();
+      ctx.moveTo(x0,y0);
+      ctx.quadraticCurveTo(mx,my,x1,y1);
+      ctx.strokeStyle = rgba(PALETTE.c3, 0.06);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // comet with trailing dots
+      const trail = [0, -0.035, -0.07, -0.105];
+      for (let k=0;k<trail.length;k++){
+        const tt = clamp(p+trail[k], 0, 1);
+        const pt = bez(tt);
+        const fade = 1 - Math.abs(trail[k])*6;
+        const size = 3.2 - k*0.55;
+        const col = s.kind==="return" ? PALETTE.c1 : PALETTE.c4;
+        ctx.beginPath();
+        ctx.fillStyle = rgba(col, clamp(0.85*fade*(1-p*0.15),0,0.85));
+        ctx.arc(pt.x, pt.y, Math.max(0.6,size), 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      if (p>=1){
+        handleStreamArrival(s);
+        streams.splice(i,1);
+      }
+    }
+  }
+
+  function drawSystemPulses(ctx){
+    for (let i=systemPulses.length-1;i>=0;i--){
+      const sp = systemPulses[i];
+      const p = clamp((performance.now()-sp.start)/sp.duration,0,1);
+      if (p>=1){ systemPulses.splice(i,1); continue; }
+      const maxR = Math.max(window.innerWidth, window.innerHeight)*0.75;
+      const r = lerp(20, maxR, p);
+      const alpha = (1-p)*0.14;
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, r, 0, Math.PI*2);
+      ctx.strokeStyle = rgba(WARN_TINT, alpha);
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    }
+  }
+
+  /* =================================================================
      CANVAS SETUP
-  --------------------------------------------------------------- */
+  ================================================================= */
   const mainCanvas = document.getElementById("main");
   const mainCtx = mainCanvas.getContext("2d");
   const miniCanvas = document.getElementById("mini");
   const miniCtx = miniCanvas.getContext("2d");
+  const overlay = document.getElementById("overlay");
+  const topSub = document.getElementById("topSub");
 
   function resize(){
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
+    const dpr = Math.min(window.devicePixelRatio||1, 2);
     const mw = window.innerWidth, mh = window.innerHeight;
     mainCanvas.width = mw*dpr; mainCanvas.height = mh*dpr;
     mainCanvas.style.width = mw+"px"; mainCanvas.style.height = mh+"px";
     mainCtx.setTransform(dpr,0,0,dpr,0,0);
 
     const rect = miniCanvas.getBoundingClientRect();
-    const mmw = rect.width || 56, mmh = rect.height || 56;
+    const mmw = rect.width||56, mmh = rect.height||56;
     miniCanvas.width = mmw*dpr; miniCanvas.height = mmh*dpr;
     miniCtx.setTransform(dpr,0,0,dpr,0,0);
+
+    computeLayout();
+    MODEL_ORDER.forEach(function(id){
+      if (entities[id].cur.r === 10 && entities[id].cur.x === 0){
+        entities[id].cur = { x:entities[id].target.x, y:entities[id].target.y, r:entities[id].target.r };
+      }
+    });
   }
   window.addEventListener("resize", resize);
-  resize();
 
-  /* ---------------------------------------------------------------
+  /* =================================================================
+     DOM OVERLAY (hit-areas, labels, task chips)
+  ================================================================= */
+  const hitEls = {};
+  MODEL_ORDER.forEach(function(id){
+    const e = entities[id];
+    const el = document.createElement("div");
+    el.className = "model-hit";
+    el.dataset.id = id;
+
+    const label = document.createElement("div");
+    label.className = "model-label";
+    label.innerHTML = e.name + "<span class='model-role'>" + e.role + "</span>";
+    el.appendChild(label);
+
+    const task = document.createElement("div");
+    task.className = "model-task";
+    el.appendChild(task);
+
+    overlay.appendChild(el);
+    hitEls[id] = { el:el, label:label, task:task };
+
+    el.addEventListener("mouseenter", function(){
+      e.hovered = true;
+      if (id !== activeMain) triggerWordOn(e, "notice");
+    });
+    el.addEventListener("mouseleave", function(){
+      e.hovered = false;
+      e.hoverOffset.x = 0; e.hoverOffset.y = 0;
+    });
+    el.addEventListener("mousemove", function(ev){
+      if (id === activeMain) return;
+      const rect = el.getBoundingClientRect();
+      const dx = ev.clientX - (rect.left+rect.width/2);
+      const dy = ev.clientY - (rect.top+rect.height/2);
+      const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+      const maxNudge = e.cur.r * 0.16;
+      const mag = Math.min(dist*0.18, maxNudge);
+      e.hoverOffset.x = (dx/dist)*mag;
+      e.hoverOffset.y = (dy/dist)*mag;
+    });
+    el.addEventListener("click", function(){
+      if (id === "s5"){
+        if (activeMain !== "s5") setActiveMain("s5"); else triggerWordOn(e,"click");
+      } else {
+        if (activeMain !== id) setActiveMain(id); else triggerWordOn(e,"click");
+      }
+    });
+  });
+
+  function statusLabel(state){
+    if (state==="receiving") return "RECEIVING";
+    if (state==="working") return "WORKING";
+    if (state==="returning") return "RETURNING";
+    if (state==="complete") return "COMPLETE";
+    return "";
+  }
+
+  function syncOverlay(){
+    MODEL_ORDER.forEach(function(id){
+      const e = entities[id];
+      const h = hitEls[id];
+      const size = e.cur.r*2.6;
+      h.el.style.width = size+"px";
+      h.el.style.height = size+"px";
+      h.el.style.transform = "translate(" + (e.cur.x-size/2) + "px," + (e.cur.y-size/2) + "px)";
+
+      const isMain = id === activeMain;
+      h.el.classList.toggle("is-main", isMain);
+      h.el.classList.toggle("show-label", isMain || e.hovered);
+
+      const showTask = e.taskState!=="idle" && e.taskText;
+      h.task.classList.toggle("show", !!showTask);
+      if (showTask){
+        h.task.innerHTML = "<span class='status'>" + statusLabel(e.taskState) + "</span>" + e.taskText;
+      }
+    });
+  }
+
+  /* =================================================================
      MAIN LOOP
-  --------------------------------------------------------------- */
+  ================================================================= */
+  function updateEntities(){
+    const now = performance.now();
+    MODEL_ORDER.forEach(function(id){
+      const e = entities[id];
+      e.cur.x = lerp(e.cur.x, e.target.x, 0.075);
+      e.cur.y = lerp(e.cur.y, e.target.y, 0.075);
+      e.cur.r = lerp(e.cur.r, e.target.r, 0.075);
+      e.hoverBoost = lerp(e.hoverBoost, e.hovered ? 1 : 0, 0.12);
+      if (!e.hovered){
+        e.hoverOffset.x = lerp(e.hoverOffset.x, 0, 0.15);
+        e.hoverOffset.y = lerp(e.hoverOffset.y, 0, 0.15);
+      }
+      if (e.variant.branchBlink && now - e.branchAt > 2400){
+        e.branchAt = now;
+        e.branchGroup = Math.floor(Math.random()*24);
+      }
+      if (e.taskState === "working" && now > e.workUntil){
+        e.taskState = "returning";
+        spawnStream(id, "s5", "return");
+      }
+    });
+  }
+
   function frame(){
-    const mw = mainCanvas.clientWidth, mh = mainCanvas.clientHeight;
-    renderSphere(mainCtx, mw, mh, { radiusFactor:0.24, particleScale:1, lineScale:1, phaseOffset:0 });
+    updateEntities();
+    computeLayout();
+
+    mainCtx.clearRect(0,0,mainCanvas.clientWidth, mainCanvas.clientHeight);
+    drawSystemPulses(mainCtx);
+
+    const drawOrder = MODEL_ORDER.filter(function(id){ return id!=="s5"; }).concat(["s5"]);
+    drawOrder.forEach(function(id){
+      const e = entities[id];
+      const cx = e.cur.x + e.hoverOffset.x;
+      const cy = e.cur.y + e.hoverOffset.y;
+      drawSphereVisual(mainCtx, cx, cy, e.cur.r, e, { hoverBoost:e.hoverBoost });
+    });
+
+    drawStreams(mainCtx);
+    syncOverlay();
 
     const mmw = miniCanvas.clientWidth, mmh = miniCanvas.clientHeight;
-    renderSphere(miniCtx, mmw, mmh, { radiusFactor:0.30, particleScale:0.55, lineScale:0.5, phaseOffset:1.7 });
+    miniCtx.clearRect(0,0,mmw,mmh);
+    drawSphereVisual(miniCtx, mmw/2, mmh/2, Math.min(mmw,mmh)*0.30, entities[activeMain], { particleScale:0.55, lineScale:0.5, phaseOffset:1.7 });
 
     requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
 
-  /* ---------------------------------------------------------------
+  /* =================================================================
      CONTROLS
-  --------------------------------------------------------------- */
+  ================================================================= */
   document.querySelectorAll(".state-btn").forEach(function(btn){
     btn.addEventListener("click", function(){
-      setMode(btn.dataset.mode);
+      entities[activeMain].mode = btn.dataset.mode;
+      document.querySelectorAll(".state-btn").forEach(function(b){
+        b.classList.toggle("is-active", b===btn);
+      });
     });
   });
   document.querySelectorAll(".word-btn").forEach(function(btn){
     btn.addEventListener("click", function(){
-      triggerWord(btn.dataset.word);
+      const word = btn.dataset.word;
+      if (word === "warning") triggerWarning(activeMain);
+      else triggerWordOn(entities[activeMain], word);
     });
   });
-  setMode("idle");
-
-  mainCanvas.addEventListener("click", function(){
-    const now = performance.now();
-    if (now - Brain.lastClick < 250) return;
-    Brain.lastClick = now;
-    triggerWord("click");
+  document.querySelectorAll(".deleg-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      const target = btn.dataset.deleg;
+      if (target === "all") delegate(["coder","researcher","planner","tester","computer","git"]);
+      else delegate([target]);
+    });
   });
+  document.querySelector('.state-btn[data-mode="idle"]').classList.add("is-active");
+
+  /* =================================================================
+     INIT
+  ================================================================= */
+  resize();
+  updateTopLabel();
+  requestAnimationFrame(frame);
 
 })();
 </script>
