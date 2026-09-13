@@ -1,0 +1,593 @@
+<!--
+  LANUX BRAIN — VISUAL PROTOTYPE (v1)
+  ------------------------------------
+  This is a standalone, self-contained visual/animation prototype for the
+  future LANUX AI assistant's "brain" (a living, talking sphere).
+
+  - Pure HTML + CSS + vanilla JS, no frameworks, no external assets.
+  - Does not touch or reference any other LANUX project file.
+  - No microphone access, no real speech recognition, no real TTS.
+  - All "listening" / "speaking" behaviour is simulated for visual design
+    purposes only, to establish LANUX's movement language before real
+    audio integration happens in a later version.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>LANUX — Brain Prototype</title>
+<style>
+  :root{
+    --c1:#ABBED3;
+    --c2:#B0BFD1;
+    --c3:#B9C3D0;
+    --c4:#CFDEEA;
+    --bg:#050608;
+  }
+
+  *{ box-sizing:border-box; }
+
+  html,body{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    background:var(--bg);
+    overflow:hidden;
+    font-family:-apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* faint vignette so the sphere reads as floating in deep space */
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    background:radial-gradient(ellipse at 50% 45%, rgba(180,196,214,0.05) 0%, rgba(0,0,0,0) 55%),
+               radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%);
+    z-index:5;
+  }
+
+  canvas#main{
+    position:fixed;
+    inset:0;
+    width:100%;
+    height:100%;
+    display:block;
+    cursor:pointer;
+  }
+
+  canvas#mini{
+    position:fixed;
+    left:22px;
+    bottom:22px;
+    width:56px;
+    height:56px;
+    display:block;
+    pointer-events:none;
+    filter:drop-shadow(0 0 10px rgba(171,190,211,0.18));
+    z-index:6;
+  }
+
+  .mini-ring{
+    position:fixed;
+    left:22px;
+    bottom:22px;
+    width:56px;
+    height:56px;
+    border-radius:50%;
+    border:1px solid rgba(207,222,234,0.08);
+    pointer-events:none;
+    z-index:6;
+  }
+
+  #controls{
+    position:fixed;
+    bottom:26px;
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:6px;
+    max-width:92vw;
+    z-index:10;
+  }
+
+  #controls .divider{
+    width:1px;
+    align-self:stretch;
+    background:rgba(207,222,234,0.12);
+    margin:2px 4px;
+  }
+
+  button.lx-btn{
+    appearance:none;
+    border:1px solid rgba(207,222,234,0.14);
+    background:rgba(207,222,234,0.03);
+    color:var(--c4);
+    font-size:11px;
+    letter-spacing:0.06em;
+    padding:8px 14px;
+    border-radius:999px;
+    cursor:pointer;
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    transition:background .25s ease, border-color .25s ease, transform .15s ease, opacity .25s ease;
+    opacity:0.72;
+  }
+
+  button.lx-btn:hover{
+    opacity:1;
+    background:rgba(207,222,234,0.08);
+    border-color:rgba(207,222,234,0.32);
+  }
+
+  button.lx-btn:active{
+    transform:scale(0.94);
+  }
+
+  button.lx-btn.state-btn.is-active{
+    opacity:1;
+    background:rgba(207,222,234,0.12);
+    border-color:rgba(207,222,234,0.45);
+  }
+
+  #label{
+    position:fixed;
+    top:26px;
+    left:50%;
+    transform:translateX(-50%);
+    color:var(--c3);
+    font-size:11px;
+    letter-spacing:0.28em;
+    opacity:0.35;
+    z-index:10;
+    user-select:none;
+    pointer-events:none;
+  }
+
+  @media (max-width:640px){
+    button.lx-btn{ padding:7px 10px; font-size:10px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="label">LANUX</div>
+
+<canvas id="main"></canvas>
+
+<div class="mini-ring"></div>
+<canvas id="mini"></canvas>
+
+<div id="controls">
+  <button class="lx-btn state-btn" data-mode="idle">IDLE</button>
+  <button class="lx-btn state-btn" data-mode="listen">LISTEN</button>
+  <button class="lx-btn state-btn" data-mode="speak">SPEAK</button>
+  <div class="divider"></div>
+  <button class="lx-btn word-btn" data-word="lanux">LANUX</button>
+  <button class="lx-btn word-btn" data-word="think">THINK</button>
+  <button class="lx-btn word-btn" data-word="search">SEARCH</button>
+  <button class="lx-btn word-btn" data-word="code">CODE</button>
+  <button class="lx-btn word-btn" data-word="warning">WARNING</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------------------------------------------------------
+     PALETTE
+  --------------------------------------------------------------- */
+  const PALETTE = {
+    c1:{r:0xAB,g:0xBE,b:0xD3}, // #ABBED3
+    c2:{r:0xB0,g:0xBF,b:0xD1}, // #B0BFD1
+    c3:{r:0xB9,g:0xC3,b:0xD0}, // #B9C3D0
+    c4:{r:0xCF,g:0xDE,b:0xEA}, // #CFDEEA
+  };
+  function rgba(c, a){ return "rgba(" + Math.round(c.r) + "," + Math.round(c.g) + "," + Math.round(c.b) + "," + a + ")"; }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+  function mixColor(c1,c2,t){
+    return { r: lerp(c1.r,c2.r,t), g: lerp(c1.g,c2.g,t), b: lerp(c1.b,c2.b,t) };
+  }
+
+  /* ---------------------------------------------------------------
+     SHARED BRAIN STATE
+     One state object drives both the main sphere and the mini
+     sphere, so they are always perfectly in sync.
+  --------------------------------------------------------------- */
+  const Brain = {
+    mode: "idle",              // idle | listen | speak
+    effect: null,              // active word-effect: {name, start, duration}
+    seedA: Math.random()*1000,
+    seedB: Math.random()*1000,
+    seedC: Math.random()*1000,
+    smoothedAmp: 0.15,         // smoothed overall amplitude (breathing/voice)
+    lastClick: 0,
+  };
+
+  const EFFECT_DURATIONS = {
+    lanux:   700,
+    think:   1900,
+    search:  1600,
+    code:    1700,
+    warning: 2000,
+    click:   500
+  };
+
+  function setMode(mode){
+    Brain.mode = mode;
+    document.querySelectorAll(".state-btn").forEach(function(b){
+      b.classList.toggle("is-active", b.dataset.mode === mode);
+    });
+  }
+
+  function triggerWord(name){
+    Brain.effect = { name: name, start: performance.now(), duration: EFFECT_DURATIONS[name] || 1200 };
+  }
+
+  /* ---------------------------------------------------------------
+     BASE AMPLITUDE PER MODE
+     A continuous signal (0..~1) representing "how alive / active"
+     the sphere is right now. Idle breathes gently; listen is more
+     irregular (simulated mic energy); speak is smoother / more
+     rhythmic (simulated voice waveform).
+  --------------------------------------------------------------- */
+  function baseAmplitude(mode, t, seedA, seedB){
+    if (mode === "listen"){
+      const n = 0.5*Math.sin(t*2.1 + seedA)
+              + 0.30*Math.sin(t*3.7 + seedB*1.3)
+              + 0.20*Math.sin(t*5.9 + seedA*0.6);
+      return clamp(0.42 + n*0.55, 0.08, 1.15);
+    }
+    if (mode === "speak"){
+      const n = 0.55*Math.sin(t*1.7 + seedB)
+              + 0.30*Math.sin(t*3.1 + seedA*0.8)
+              + 0.15*Math.sin(t*0.9 + seedB*1.6);
+      return clamp(0.40 + n*0.48, 0.08, 1.05);
+    }
+    // idle
+    return 0.14 + 0.05*Math.sin(t*0.55 + seedA) + 0.02*Math.sin(t*1.3 + seedB);
+  }
+
+  /* ---------------------------------------------------------------
+     WORD-EFFECT ENVELOPES
+     Each returns a small bundle of extra parameters, purely a
+     function of progress p (0..1), layered on top of the base
+     rendering for the duration of the effect.
+  --------------------------------------------------------------- */
+  function effectParams(name, p){
+    const out = {
+      ampAdd: 0,        // added to base amplitude
+      coreAdd: 0,       // added core brightness
+      ringAdd: 0,       // added ring radius offset
+      structured: 0,    // 0..1 pull toward geometric grid formation
+      spiral: 0,        // 0..1 inward spiral pull
+      ripple: 0,        // 0..1 outward ripple strength
+      ripplePhase: 0,
+      rotBoost: 0,       // extra rotation speed
+      flash: 0           // sharp core/edge flash
+    };
+
+    if (name === "lanux"){
+      // sharp pulse, quick ring expansion, settle
+      const e = Math.exp(-p*7.5);
+      out.flash = e;
+      out.coreAdd = e * 0.9;
+      out.ringAdd = Math.sin(p*Math.PI) * 0.35;
+      out.ampAdd = e * 0.5;
+      return out;
+    }
+
+    if (name === "think"){
+      // particles spiral inward, core intensifies, releases outward
+      const inPhase = clamp(p/0.5, 0, 1);
+      const outPhase = clamp((p-0.5)/0.5, 0, 1);
+      out.spiral = Math.sin(inPhase*Math.PI) * (1-outPhase*0.3);
+      out.coreAdd = Math.sin(clamp(p/0.7,0,1)*Math.PI) * 0.8;
+      out.rotBoost = (1-p) * 1.8;
+      out.ampAdd = -0.05 * (1-outPhase) + outPhase*0.15;
+      return out;
+    }
+
+    if (name === "search"){
+      // outward ripple travelling through the sphere
+      out.ripple = Math.sin(p*Math.PI); // rises then falls
+      out.ripplePhase = p;
+      out.coreAdd = 0.25 * (1-p);
+      out.ampAdd = 0.1 * Math.sin(p*Math.PI);
+      return out;
+    }
+
+    if (name === "code"){
+      // structured / geometric, several rapid controlled pulses
+      out.structured = Math.sin(p*Math.PI) ;
+      const pulses = Math.sin(p * Math.PI * 9);
+      out.ampAdd = Math.max(0, pulses) * 0.28 * (1-p*0.4);
+      out.coreAdd = Math.max(0, pulses) * 0.35;
+      out.ringAdd = 0.06 * Math.max(0, pulses);
+      return out;
+    }
+
+    if (name === "warning"){
+      // strong compression/expansion, more intense but still on-palette
+      const cyc = Math.sin(p * Math.PI * 2.4 - Math.PI/2); // compress/expand cycles
+      out.ampAdd = cyc * 0.55 * (1 - p*0.25);
+      out.coreAdd = Math.max(0, cyc) * 0.7;
+      out.ringAdd = cyc * 0.22;
+      out.flash = Math.max(0, -cyc) * 0.4;
+      return out;
+    }
+
+    if (name === "click"){
+      const e = Math.exp(-p*9);
+      out.ampAdd = e*0.3;
+      out.coreAdd = e*0.5;
+      out.ringAdd = Math.sin(p*Math.PI)*0.15;
+      return out;
+    }
+
+    return out;
+  }
+
+  /* ---------------------------------------------------------------
+     PARTICLE FIELD (Fibonacci sphere distribution)
+  --------------------------------------------------------------- */
+  const PARTICLE_COUNT = 460;
+  const particles = [];
+  (function buildParticles(){
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    for (let i=0;i<PARTICLE_COUNT;i++){
+      const yv = 1 - (i/(PARTICLE_COUNT-1))*2;
+      const rAtY = Math.sqrt(Math.max(0, 1 - yv*yv));
+      const theta = golden * i;
+      const x = Math.cos(theta)*rAtY;
+      const z = Math.sin(theta)*rAtY;
+      const y = yv;
+      particles.push({
+        x0:x, y0:y, z0:z,
+        theta: theta,
+        phi: Math.acos(clamp(yv,-1,1)),
+        seed1: Math.random()*Math.PI*2,
+        seed2: Math.random()*Math.PI*2,
+        freq1: 0.5 + Math.random()*0.6,
+        freq2: 0.3 + Math.random()*0.5,
+        distIndex: i / PARTICLE_COUNT
+      });
+    }
+  })();
+
+  /* structured/grid target: snap theta/phi to a coarse lat/long grid
+     to create a more geometric, "engineered" look for CODE effect */
+  function structuredVector(p){
+    const latSteps = 9, lonSteps = 14;
+    const phiSnap = Math.round(p.phi / (Math.PI/latSteps)) * (Math.PI/latSteps);
+    const thetaSnap = Math.round(p.theta / (Math.PI*2/lonSteps)) * (Math.PI*2/lonSteps);
+    const sy = Math.cos(phiSnap);
+    const rAtY = Math.sin(phiSnap);
+    const sx = Math.cos(thetaSnap)*rAtY;
+    const sz = Math.sin(thetaSnap)*rAtY;
+    return {x:sx,y:sy,z:sz};
+  }
+
+  /* ---------------------------------------------------------------
+     RENDERER
+     A single function renders one sphere (main or mini) into a
+     given canvas context, at a given size, using the shared Brain
+     state plus a local rotation phase so main/mini feel connected
+     but not robotically identical.
+  --------------------------------------------------------------- */
+  function renderSphere(ctx, w, h, opts){
+    const t = performance.now()/1000;
+    const cx = w/2, cy = h/2;
+    const baseR = Math.min(w,h) * (opts.radiusFactor || 0.30);
+
+    // ---- effect progress ----
+    let fx = { ampAdd:0, coreAdd:0, ringAdd:0, structured:0, spiral:0, ripple:0, ripplePhase:0, rotBoost:0, flash:0 };
+    if (Brain.effect){
+      const now = performance.now();
+      const p = clamp((now - Brain.effect.start) / Brain.effect.duration, 0, 1);
+      fx = effectParams(Brain.effect.name, p);
+      if (p >= 1) Brain.effect = null;
+    }
+
+    // ---- amplitude (breathing / voice) ----
+    const rawAmp = baseAmplitude(Brain.mode, t, Brain.seedA, Brain.seedB) + fx.ampAdd;
+    Brain.smoothedAmp = lerp(Brain.smoothedAmp, rawAmp, 0.12);
+    const amp = clamp(Brain.smoothedAmp, 0, 1.3);
+
+    const breathe = 1 + amp*0.16;
+    const sphereR = baseR * breathe;
+
+    // ---- rotation ----
+    const rotSpeed = 0.09 + fx.rotBoost*0.35 + (Brain.mode!=="idle" ? 0.05 : 0);
+    const rotY = t * rotSpeed + (opts.phaseOffset||0);
+    const rotX = Math.sin(t*0.13 + (opts.phaseOffset||0)) * 0.32;
+
+    const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+    const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+
+    // ---- background clear ----
+    ctx.clearRect(0,0,w,h);
+
+    // ---- outer atmospheric glow ----
+    const glowFlicker = 0.85 + 0.15*Math.sin(t*3.2 + Brain.seedC) * (0.4+amp);
+    const outerGlowR = sphereR * (1.9 + amp*0.4);
+    const gGrad = ctx.createRadialGradient(cx,cy, sphereR*0.4, cx,cy, outerGlowR);
+    gGrad.addColorStop(0, rgba(PALETTE.c1, 0.10*glowFlicker + fx.flash*0.15));
+    gGrad.addColorStop(0.5, rgba(PALETTE.c2, 0.045*glowFlicker));
+    gGrad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = gGrad;
+    ctx.beginPath();
+    ctx.arc(cx,cy,outerGlowR,0,Math.PI*2);
+    ctx.fill();
+
+    // ---- orbital rings ----
+    const ringSpecs = [
+      { rMul: 1.28, tiltX: 0.55, speed: 0.16, dir: 1,  alpha: 0.16 },
+      { rMul: 1.42, tiltX: -0.35, speed: 0.10, dir: -1, alpha: 0.10 },
+      { rMul: 1.16, tiltX: 0.15, speed: 0.24, dir: 1,  alpha: 0.12 }
+    ];
+    ringSpecs.forEach(function(r, idx){
+      const ringR = sphereR * r.rMul * (1 + fx.ringAdd*0.5);
+      const ringRotY = t * r.speed * r.dir + idx*1.7 + (opts.phaseOffset||0);
+      const squash = 0.30 + 0.25*Math.sin(r.tiltX + Math.sin(t*0.07+idx));
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(ringRotY*0.15);
+      ctx.scale(1, Math.max(0.12, Math.abs(squash)));
+      ctx.beginPath();
+      ctx.arc(0,0, ringR, 0, Math.PI*2);
+      ctx.strokeStyle = rgba(PALETTE.c3, r.alpha + fx.flash*0.2 + amp*0.05);
+      ctx.lineWidth = Math.max(0.6, (opts.lineScale||1) * 0.9);
+      ctx.stroke();
+      ctx.restore();
+    });
+
+    // ---- particles ----
+    const projected = [];
+    for (let i=0;i<particles.length;i++){
+      const p = particles[i];
+
+      // organic per-particle drift (never a plain uniform spin)
+      const drift = 1 + 0.05*Math.sin(t*p.freq1 + p.seed1)*(0.4+amp)
+                      + 0.03*Math.sin(t*p.freq2 + p.seed2 + i*0.01);
+
+      // blend toward structured grid formation (CODE effect)
+      let vx = p.x0, vy = p.y0, vz = p.z0;
+      if (fx.structured > 0.001){
+        const sv = structuredVector(p);
+        vx = lerp(vx, sv.x, fx.structured);
+        vy = lerp(vy, sv.y, fx.structured);
+        vz = lerp(vz, sv.z, fx.structured);
+      }
+
+      // spiral inward pull (THINK effect)
+      let radialScale = drift;
+      if (fx.spiral > 0.001){
+        radialScale *= (1 - fx.spiral*0.45);
+      }
+
+      // outward ripple travelling from core to edge (SEARCH effect)
+      if (fx.ripple > 0.001){
+        const wave = Math.sin((p.distIndex*10 - fx.ripplePhase*14));
+        radialScale *= (1 + Math.max(0,wave) * fx.ripple * 0.35);
+      }
+
+      // overall breathing amplitude push
+      radialScale *= (1 + amp*0.10);
+
+      const rad = sphereR * radialScale;
+
+      // rotate around Y then tilt around X
+      let rx = vx*cosY - vz*sinY;
+      let rz = vx*sinY + vz*cosY;
+      let ry = vy*cosX - rz*sinX;
+      rz = vy*sinX + rz*cosX;
+
+      const sx = cx + rx*rad;
+      const sy = cy + ry*rad;
+      const depth = (rz + 1) / 2; // 0..1, 1 = toward viewer
+
+      projected.push({sx:sx, sy:sy, depth:depth, i:i});
+    }
+
+    projected.sort(function(a,b){ return a.depth - b.depth; });
+
+    for (let k=0;k<projected.length;k++){
+      const pr = projected[k];
+      const size = lerp(0.55, 2.1, pr.depth) * (opts.particleScale || 1);
+      const alpha = lerp(0.10, 0.85, pr.depth) * (0.55 + amp*0.5);
+      const col = mixColor(PALETTE.c1, PALETTE.c4, pr.depth*0.7 + fx.flash*0.3);
+      ctx.beginPath();
+      ctx.fillStyle = rgba(col, clamp(alpha,0,1));
+      ctx.arc(pr.sx, pr.sy, size, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // ---- luminous core ----
+    const coreBrightness = clamp(0.55 + amp*0.5 + fx.coreAdd, 0, 1.6);
+    const coreR = sphereR * (0.16 + coreBrightness*0.05);
+    const coreGrad = ctx.createRadialGradient(cx,cy,0, cx,cy, coreR*2.4);
+    coreGrad.addColorStop(0, rgba(PALETTE.c4, clamp(0.95*coreBrightness,0,1)));
+    coreGrad.addColorStop(0.35, rgba(PALETTE.c3, clamp(0.5*coreBrightness,0,1)));
+    coreGrad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath();
+    ctx.arc(cx,cy, coreR*2.4, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.fillStyle = rgba(PALETTE.c4, clamp(0.9*coreBrightness,0,1));
+    ctx.arc(cx,cy, coreR*0.55, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  /* ---------------------------------------------------------------
+     CANVAS SETUP
+  --------------------------------------------------------------- */
+  const mainCanvas = document.getElementById("main");
+  const mainCtx = mainCanvas.getContext("2d");
+  const miniCanvas = document.getElementById("mini");
+  const miniCtx = miniCanvas.getContext("2d");
+
+  function resize(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const mw = window.innerWidth, mh = window.innerHeight;
+    mainCanvas.width = mw*dpr; mainCanvas.height = mh*dpr;
+    mainCanvas.style.width = mw+"px"; mainCanvas.style.height = mh+"px";
+    mainCtx.setTransform(dpr,0,0,dpr,0,0);
+
+    const rect = miniCanvas.getBoundingClientRect();
+    const mmw = rect.width || 56, mmh = rect.height || 56;
+    miniCanvas.width = mmw*dpr; miniCanvas.height = mmh*dpr;
+    miniCtx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  /* ---------------------------------------------------------------
+     MAIN LOOP
+  --------------------------------------------------------------- */
+  function frame(){
+    const mw = mainCanvas.clientWidth, mh = mainCanvas.clientHeight;
+    renderSphere(mainCtx, mw, mh, { radiusFactor:0.24, particleScale:1, lineScale:1, phaseOffset:0 });
+
+    const mmw = miniCanvas.clientWidth, mmh = miniCanvas.clientHeight;
+    renderSphere(miniCtx, mmw, mmh, { radiusFactor:0.30, particleScale:0.55, lineScale:0.5, phaseOffset:1.7 });
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  /* ---------------------------------------------------------------
+     CONTROLS
+  --------------------------------------------------------------- */
+  document.querySelectorAll(".state-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      setMode(btn.dataset.mode);
+    });
+  });
+  document.querySelectorAll(".word-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      triggerWord(btn.dataset.word);
+    });
+  });
+  setMode("idle");
+
+  mainCanvas.addEventListener("click", function(){
+    const now = performance.now();
+    if (now - Brain.lastClick < 250) return;
+    Brain.lastClick = now;
+    triggerWord("click");
+  });
+
+})();
+</script>
+</body>
+</html>
