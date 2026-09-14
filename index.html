@@ -110,6 +110,11 @@
   .model-hit.show-label .model-label{ opacity:0.94; color:var(--c4); transform:translateY(-1px); text-shadow:0 0 14px rgba(207,222,234,0.4); }
   .model-hit.is-main .model-label{ opacity:0.96; color:var(--c4); }
   .model-hit.is-main .model-name-text{ font-size:12.5px; }
+  /* the giant center sphere's identity is shown by the header above it and
+     the status pill below it — its own under-sphere label/task would just
+     collide with that status pill, so it's suppressed here */
+  .model-hit.is-main .model-label,
+  .model-hit.is-main .model-task{ display:none; }
 
   .model-purpose{
     display:block;
@@ -148,22 +153,41 @@
     opacity:0.8;
   }
 
+  /* current-model header — positioned dynamically in JS just above the
+     central sphere (its bottom edge is pinned to the sphere's top edge
+     with a small gap), so it always reads as "belonging" to the sphere */
   #topLabel{
-    position:fixed; top:20px; left:50%; transform:translateX(-50%);
-    color:var(--c3);
-    font-size:10px;
-    letter-spacing:0.34em;
-    opacity:0.38;
-    z-index:10;
-    user-select:none;
-    pointer-events:none;
-    text-align:center;
+    position:fixed; left:50%; top:0;
+    transform:translate(-50%,-100%);
+    z-index:10; user-select:none; pointer-events:none;
+    text-align:center; white-space:nowrap;
   }
-  #topLabel .sub{ display:block; font-size:8px; letter-spacing:0.24em; opacity:0.65; margin-top:4px; }
+  #topLabel .headerName{
+    display:block; color:var(--c4);
+    font-size:13px; letter-spacing:0.24em; opacity:0.92;
+    text-shadow:0 0 14px rgba(207,222,234,0.3);
+  }
+  #topLabel .sub{ display:block; font-size:9px; letter-spacing:0.1em; color:var(--c3); opacity:0.6; margin-top:5px; }
+
+  /* central status pill — positioned dynamically just below the sphere */
+  #statusBar{
+    position:fixed; left:50%; top:0;
+    transform:translate(-50%,0);
+    z-index:10; pointer-events:none;
+    background:rgba(26,33,48,0.42);
+    border:1px solid rgba(207,222,234,0.14);
+    border-radius:999px;
+    padding:6px 0;
+    text-align:center;
+    backdrop-filter:blur(8px);
+  }
+  #statusBar span{
+    font-size:9.5px; letter-spacing:0.28em; color:var(--c4); opacity:0.85;
+  }
 
   /* ---------------- internal activity feed (top-left) ---------------- */
   #feedPanel{
-    position:fixed; top:70px; left:24px;
+    position:fixed; top:40px; left:24px;
     width:min(300px, 30vw);
     min-height:74px;
     background:linear-gradient(180deg, rgba(19,24,36,0.58), rgba(14,18,25,0.38));
@@ -186,12 +210,24 @@
 
   /* ---------------- active work panel (top-right) ---------------- */
   #workPanel{
-    position:fixed; top:70px; right:24px; width:min(300px, 30vw);
-    max-height:230px; overflow:hidden;
+    position:fixed; top:40px; right:24px; width:min(300px, 30vw);
+    max-height:150px; overflow:hidden;
     background:linear-gradient(180deg, rgba(19,24,36,0.58), rgba(14,18,25,0.38));
     border:1px solid rgba(207,222,234,0.09);
     border-radius:16px;
     padding:11px 16px 13px;
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    z-index:9; pointer-events:none;
+    box-shadow:0 12px 40px rgba(0,0,0,0.22);
+  }
+  /* ---------------- history / results panel (bottom-right) ---------------- */
+  #historyPanel{
+    position:fixed; bottom:150px; right:24px; width:min(280px, 28vw);
+    max-height:110px; overflow:hidden;
+    background:linear-gradient(180deg, rgba(19,24,36,0.58), rgba(14,18,25,0.38));
+    border:1px solid rgba(207,222,234,0.09);
+    border-radius:16px;
+    padding:11px 16px 12px;
     backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
     z-index:9; pointer-events:none;
     box-shadow:0 12px 40px rgba(0,0,0,0.22);
@@ -273,10 +309,10 @@
   }
 
   @media (max-width:1000px){
-    #feedPanel, #workPanel{ width:220px; }
+    #feedPanel, #workPanel, #historyPanel{ width:220px; }
   }
   @media (max-width:820px){
-    #feedPanel, #workPanel{ display:none; }
+    #feedPanel, #workPanel, #historyPanel{ display:none; }
   }
   @media (max-width:760px){
     button.lx-btn{ padding:6px 9px; font-size:9px; }
@@ -286,7 +322,8 @@
 </head>
 <body>
 
-<div id="topLabel">LANUX<span class="sub" id="topSub">S5 — CENTRAL CONTROLLER</span></div>
+<div id="topLabel"><span class="headerName" id="headerName">LANUX S5</span><span class="sub" id="headerPurpose">Controller / Decision Maker</span></div>
+<div id="statusBar"><span id="statusText">IDLE</span></div>
 
 <div id="feedPanel">
   <div class="panel-caption">INTERNAL ACTIVITY</div>
@@ -301,6 +338,11 @@
 <div id="workPanel">
   <div class="panel-caption">ACTIVE WORK</div>
   <div id="workBody"></div>
+</div>
+
+<div id="historyPanel">
+  <div class="panel-caption">HISTORY</div>
+  <div id="historyBody"></div>
 </div>
 
 <div class="mini-ring"></div>
@@ -369,11 +411,22 @@
     computer:   { name:"COMPUTER",    purpose:"PC Control / Automation",     role:"SPECIALIST", variant:"mechanical",  particles:170 },
     git:        { name:"GIT / OPS",   purpose:"Git / Projects / Deployment", role:"SPECIALIST", variant:"branching",   particles:170 },
   };
-  // fixed left/right command-center columns — never a circular orbit
-  const SIDE_LAYOUT = {
-    left:  ["coder","planner","computer"],
-    right: ["researcher","tester","git"]
+  // fixed left/right command-center slots — never a circular orbit.
+  // Whichever entity is NOT the current center occupies exactly one of
+  // these six slots; when a specialist becomes the center, S5 simply
+  // swaps into that specialist's vacated slot (see getSlotAssignment).
+  const HOME_SLOTS = {
+    leftTop:"coder", leftMid:"planner", leftBottom:"computer",
+    rightTop:"researcher", rightMid:"tester", rightBottom:"git"
   };
+  function getSlotAssignment(){
+    if (activeMain === "s5") return Object.assign({}, HOME_SLOTS);
+    const slots = Object.assign({}, HOME_SLOTS);
+    for (const key in slots){
+      if (slots[key] === activeMain){ slots[key] = "s5"; break; }
+    }
+    return slots;
+  }
   const TASKS = {
     coder:      "Modify authentication system",
     researcher: "Research OAuth requirements",
@@ -557,56 +610,59 @@
   }
 
   /* =================================================================
-     LAYOUT — command-center composition
-     S5 is large and centered with deliberate negative space. The six
-     specialists sit ONLY in two fixed vertical columns (left / right) —
-     never a ring, never above/below S5. Positions are derived from the
-     live viewport size (reserved top/bottom bands + a responsive column
-     gap) so the composition holds together across desktop sizes rather
-     than relying on fixed pixel coordinates.
+     LAYOUT — command-center composition, derived directly from the
+     ui.png reference geometry (giant centered sphere; six specialists
+     in two fixed vertical slots, left and right; header above the
+     sphere; status pill directly beneath it). Every distance is
+     expressed as a factor of the sphere's own radius (itself a factor
+     of min(W,H)), so the whole composition scales together and holds
+     its proportions across any desktop viewport — no orbit, no
+     specialist ever above/below the center.
   ================================================================= */
-  const TOP_RESERVED = 230;    // clears the top-left/top-right info panels
-  const BOTTOM_RESERVED = 190; // clears the control bar + mini brain row
+  const SPHERE_R_FACTOR = 0.225;   // sphere radius = this * min(W,H)
+  const SPEC_R_RATIO    = 0.257;   // specialist radius, relative to sphere radius
+  const GAP_TOPBOTTOM   = 0.385;   // sphere-edge-to-specialist-edge gap (top/bottom slots), x sphereR
+  const GAP_MIDDLE      = 0.75;    // same, for the mid slots (pushed further out, per reference)
+  const V_SPACING       = 1.145;   // vertical offset of top/bottom slots from center, x sphereR
 
-  function layoutColumn(ids, colX, centerY, vSpacing, m, specR){
-    const n = ids.length;
-    ids.forEach(function(id, idx){
-      const offsetSteps = idx - (n-1)/2;
-      const wobble = 1 + 0.035*Math.sin(idx*2.1 + colX*0.001); // subtle, never rigid
-      entities[id].target = {
-        x: colX,
-        y: centerY + offsetSteps*vSpacing*wobble,
-        r: specR
-      };
-    });
-  }
+  let layoutMeta = { centerX:0, centerY:0, sphereR:0 };
 
   function computeLayout(){
     const W = mainCanvas.clientWidth, H = mainCanvas.clientHeight;
     const m = Math.min(W,H);
-    const middleH = Math.max(260, H - TOP_RESERVED - BOTTOM_RESERVED);
-    const centerY = TOP_RESERVED + middleH/2;
-    const vSpacing = Math.min(middleH*0.30, 140);
-    const colGap = Math.min(W*0.33, Math.max(200, W/2 - 130));
-    const leftX = W*0.5 - colGap;
-    const rightX = W*0.5 + colGap;
-    const specR = m*0.058;
+    const centerX = W*0.5, centerY = H*0.5;
+    const sphereR = m*SPHERE_R_FACTOR;
+    const specR = sphereR*SPEC_R_RATIO;
+    const vSpacing = sphereR*V_SPACING;
+    const gapTB = sphereR*GAP_TOPBOTTOM, gapMid = sphereR*GAP_MIDDLE;
+    const leftXTB = centerX - sphereR - gapTB - specR;
+    const leftXMid = centerX - sphereR - gapMid - specR;
+    const rightXTB = centerX + sphereR + gapTB + specR;
+    const rightXMid = centerX + sphereR + gapMid + specR;
 
-    if (activeMain === "s5"){
-      const r = Math.min(m*0.20, middleH*0.42);
-      entities.s5.target = { x:W*0.5, y:centerY, r:r };
-      layoutColumn(SIDE_LAYOUT.left, leftX, centerY, vSpacing, m, specR);
-      layoutColumn(SIDE_LAYOUT.right, rightX, centerY, vSpacing, m, specR);
-    } else {
-      const mainId = activeMain;
-      const r = Math.min(m*0.185, middleH*0.40);
-      entities[mainId].target = { x:W*0.5, y:centerY, r:r };
-      entities.s5.target = { x:W*0.5, y:TOP_RESERVED*0.55, r:m*0.035 };
-      const leftIds = SIDE_LAYOUT.left.filter(function(id){ return id!==mainId; });
-      const rightIds = SIDE_LAYOUT.right.filter(function(id){ return id!==mainId; });
-      layoutColumn(leftIds, leftX, centerY, vSpacing, m, specR);
-      layoutColumn(rightIds, rightX, centerY, vSpacing, m, specR);
-    }
+    entities[activeMain].target = { x:centerX, y:centerY, r:sphereR };
+
+    const slots = getSlotAssignment();
+    entities[slots.leftTop].target    = { x:leftXTB,  y:centerY - vSpacing, r:specR };
+    entities[slots.leftMid].target    = { x:leftXMid, y:centerY,            r:specR };
+    entities[slots.leftBottom].target = { x:leftXTB,  y:centerY + vSpacing, r:specR };
+    entities[slots.rightTop].target    = { x:rightXTB,  y:centerY - vSpacing, r:specR };
+    entities[slots.rightMid].target    = { x:rightXMid, y:centerY,            r:specR };
+    entities[slots.rightBottom].target = { x:rightXTB,  y:centerY + vSpacing, r:specR };
+
+    layoutMeta = { centerX:centerX, centerY:centerY, sphereR:sphereR };
+  }
+
+  // positions the "current model" header and the central status pill —
+  // both are pinned to the CENTER sphere's live (eased) position/size
+  // each frame, so they glide smoothly along with it during transitions
+  function syncHeaderAndStatus(){
+    const c = entities[activeMain].cur;
+    topLabelEl.style.left = c.x + "px";
+    topLabelEl.style.top = (c.y - c.r - c.r*0.25 - 8) + "px";
+    statusBarEl.style.left = c.x + "px";
+    statusBarEl.style.top = (c.y + c.r + c.r*0.08 + 6) + "px";
+    statusBarEl.style.width = (c.r*1.5) + "px";
   }
 
   function setActiveMain(id){
@@ -618,7 +674,19 @@
 
   function updateTopLabel(){
     const e = entities[activeMain];
-    topSub.textContent = activeMain==="s5" ? "S5 — CENTRAL CONTROLLER" : e.name + " — ACTIVE MODEL";
+    headerNameEl.textContent = e.name;
+    headerPurposeEl.textContent = e.purpose;
+  }
+
+  function statusWordFor(entity){
+    if (entity.taskState === "receiving") return "RECEIVING";
+    if (entity.taskState === "working") return "WORKING";
+    if (entity.taskState === "returning") return "RETURNING";
+    if (entity.taskState === "complete") return "COMPLETE";
+    if (entity.effect && entity.effect.name === "think") return "THINKING";
+    if (entity.mode === "listen") return "LISTENING";
+    if (entity.mode === "speak") return "SPEAKING";
+    return "IDLE";
   }
 
   /* =================================================================
@@ -628,6 +696,7 @@
   ================================================================= */
   const feedBody = document.getElementById("feedBody");
   const workBody = document.getElementById("workBody");
+  const historyBody = document.getElementById("historyBody");
   const feedQueue = [];
   const completedLog = [];
   let feedBusy = false;
@@ -675,7 +744,7 @@
     const specialists = MODEL_ORDER.filter(function(id){ return id!=="s5"; });
     const active = specialists.filter(function(id){ return entities[id].taskState!=="idle"; });
     let html = "";
-    if (active.length===0 && completedLog.length===0){
+    if (active.length===0){
       html = '<div class="work-empty">No active tasks. Delegate work from S5 to see it here.</div>';
     } else {
       const shown = active.slice(0,3); // current work stays the priority — never a giant list
@@ -688,18 +757,27 @@
       if (active.length > shown.length){
         html += '<div class="work-more">+'+(active.length-shown.length)+' more working…</div>';
       }
-      if (completedLog.length){
-        html += '<div class="work-section-label">HISTORY</div>';
-        completedLog.slice(-1).reverse().forEach(function(item){
-          html += '<div class="work-row"><div class="work-main"><div class="work-model">'+item.model+'</div>'
-                + '<span class="work-task">'+item.task+'</span></div>'
-                + '<div class="work-status complete">COMPLETE</div></div>';
-        });
-      }
     }
     if (workBody._sig !== html){
       workBody.innerHTML = html;
       workBody._sig = html;
+    }
+  }
+
+  function renderHistoryPanel(){
+    let html = "";
+    if (completedLog.length===0){
+      html = '<div class="work-empty">No completed work yet.</div>';
+    } else {
+      completedLog.slice(-3).reverse().forEach(function(item){
+        html += '<div class="work-row"><div class="work-main"><div class="work-model">'+item.model+'</div>'
+              + '<span class="work-task">'+item.task+'</span></div>'
+              + '<div class="work-status complete">COMPLETE</div></div>';
+      });
+    }
+    if (historyBody._sig !== html){
+      historyBody.innerHTML = html;
+      historyBody._sig = html;
     }
   }
 
@@ -1012,7 +1090,11 @@
   const miniCanvas = document.getElementById("mini");
   const miniCtx = miniCanvas.getContext("2d");
   const overlay = document.getElementById("overlay");
-  const topSub = document.getElementById("topSub");
+  const topLabelEl = document.getElementById("topLabel");
+  const headerNameEl = document.getElementById("headerName");
+  const headerPurposeEl = document.getElementById("headerPurpose");
+  const statusBarEl = document.getElementById("statusBar");
+  const statusTextEl = document.getElementById("statusText");
 
   function resize(){
     const dpr = Math.min(window.devicePixelRatio||1, 2);
@@ -1147,17 +1229,17 @@
     mainCtx.clearRect(0,0,mainCanvas.clientWidth, mainCanvas.clientHeight);
     drawSystemPulses(mainCtx);
 
-    // faint "command space" boundary around S5 when it's the home/main sphere —
-    // a quiet cue that this is deliberately protected negative space, not a diagram
-    if (activeMain === "s5"){
-      mainCtx.beginPath();
-      mainCtx.arc(entities.s5.cur.x, entities.s5.cur.y, entities.s5.cur.r*1.55, 0, Math.PI*2);
-      mainCtx.strokeStyle = rgba(PALETTE.c3, 0.035);
-      mainCtx.lineWidth = 1;
-      mainCtx.stroke();
-    }
+    // faint "command space" boundary around whichever entity is the giant
+    // center sphere right now — a quiet cue that this is deliberately
+    // protected negative space, not a diagram
+    const centerEntity = entities[activeMain];
+    mainCtx.beginPath();
+    mainCtx.arc(centerEntity.cur.x, centerEntity.cur.y, centerEntity.cur.r*1.55, 0, Math.PI*2);
+    mainCtx.strokeStyle = rgba(PALETTE.c3, 0.035);
+    mainCtx.lineWidth = 1;
+    mainCtx.stroke();
 
-    const drawOrder = MODEL_ORDER.filter(function(id){ return id!=="s5"; }).concat(["s5"]);
+    const drawOrder = MODEL_ORDER.filter(function(id){ return id!==activeMain; }).concat([activeMain]);
     drawOrder.forEach(function(id){
       const e = entities[id];
       const cx = e.cur.x + e.hoverOffset.x;
@@ -1167,7 +1249,10 @@
 
     drawStreams(mainCtx);
     syncOverlay();
+    syncHeaderAndStatus();
+    statusTextEl.textContent = statusWordFor(centerEntity);
     renderWorkPanel();
+    renderHistoryPanel();
 
     // the bottom-left mini brain always mirrors S5/LANUX itself — it is
     // LANUX's persistent presence, not whichever model happens to be focused
@@ -1275,6 +1360,7 @@
   resize();
   updateTopLabel();
   renderWorkPanel();
+  renderHistoryPanel();
   logMessage("LANUX-S5", "Standing by. Ready for instructions.");
   requestAnimationFrame(frame);
 
