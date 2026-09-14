@@ -290,6 +290,7 @@
     opacity:0.88;
   }
   button.lx-btn.demo-btn:hover{ background:rgba(207,222,234,0.14); border-color:rgba(207,222,234,0.5); }
+  button.lx-btn.sound-btn.is-on{ opacity:1; background:rgba(207,222,234,0.12); border-color:rgba(207,222,234,0.4); }
 
   .mini-ring{
     position:fixed; left:22px; bottom:22px; width:56px; height:56px;
@@ -361,6 +362,8 @@
     <button class="lx-btn word-btn" data-word="search">SEARCH</button>
     <button class="lx-btn word-btn" data-word="code">CODE</button>
     <button class="lx-btn word-btn warn-btn" data-word="warning">WARNING</button>
+    <div class="divider"></div>
+    <button class="lx-btn sound-btn" id="soundBtn">♪ SOUND: OFF</button>
   </div>
   <div class="row-caption">DELEGATE FROM S5</div>
   <div class="control-row">
@@ -391,12 +394,168 @@
     c3:{r:0xB9,g:0xC3,b:0xD0},
     c4:{r:0xCF,g:0xDE,b:0xEA},
   };
-  const WARN_TINT = {r:196,g:148,b:138}; // subtle warm rose — "requires attention", never bright red
+  // official LANUX --error token (#E4685D), blended in at low weight during
+  // WARNING so it reads as "requires attention" rather than an alarm colour
+  const WARN_TINT = {r:0xE4,g:0x68,b:0x5D};
 
   function rgba(c,a){ return "rgba("+Math.round(c.r)+","+Math.round(c.g)+","+Math.round(c.b)+","+a+")"; }
   function lerp(a,b,t){ return a+(b-a)*t; }
   function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
   function mixColor(c1,c2,t){ return {r:lerp(c1.r,c2.r,t), g:lerp(c1.g,c2.g,t), b:lerp(c1.b,c2.b,t)}; }
+
+  /* =================================================================
+     PROCEDURAL AUDIO — tiny Web Audio synth engine. No external audio
+     files of any kind; every sound is a synthesized oscillator/noise
+     burst with a short envelope. Silent until the user explicitly
+     enables it (browser autoplay policy + explicit consent), and the
+     AudioContext is only created/resumed from inside a real click
+     handler. The preference persists via localStorage.
+  ================================================================= */
+  const AudioEngine = (function(){
+    let ctx = null, master = null, enabled = false;
+    try { enabled = localStorage.getItem("lanuxSoundOn") === "1"; } catch(e){}
+
+    function ensureCtx(){
+      if (ctx) return ctx;
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = 0.16; // hard ceiling — sound never dominates
+        master.connect(ctx.destination);
+      } catch(e){ ctx = null; }
+      return ctx;
+    }
+
+    function setEnabled(v){
+      enabled = v;
+      try { localStorage.setItem("lanuxSoundOn", v ? "1" : "0"); } catch(e){}
+      if (v){
+        const c = ensureCtx();
+        if (c && c.state === "suspended") c.resume();
+      }
+    }
+    function isEnabled(){ return enabled; }
+
+    // the entire sound vocabulary is this one short synthesized blip,
+    // varied only by frequency / wave shape / duration / pitch-slide —
+    // deliberately not musical, not game-like, not alarm-like
+    function pulse(o){
+      if (!enabled) return;
+      const c = ensureCtx();
+      if (!c || c.state !== "running") return;
+      o = o || {};
+      const dur = o.dur || 0.09;
+      const t0 = c.currentTime + (o.delay||0);
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = o.type || "sine";
+      osc.frequency.setValueAtTime(o.freq||420, t0);
+      if (o.slide) osc.frequency.exponentialRampToValueAtTime(Math.max(20,(o.freq||420)*o.slide), t0+dur);
+      const vol = o.vol===undefined ? 1 : o.vol;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(vol, t0+Math.min(0.012,dur*0.25));
+      gain.gain.exponentialRampToValueAtTime(0.0008, t0+dur);
+      osc.connect(gain); gain.connect(master);
+      osc.start(t0); osc.stop(t0+dur+0.02);
+    }
+
+    // a soft filtered-noise breath, used sparingly for a low "processing
+    // texture" underneath a pulse (S5 thinking/acknowledging)
+    function noiseTexture(o){
+      if (!enabled) return;
+      const c = ensureCtx();
+      if (!c || c.state !== "running") return;
+      o = o || {};
+      const dur = o.dur || 0.22;
+      const t0 = c.currentTime + (o.delay||0);
+      const size = Math.max(1, Math.floor(c.sampleRate*dur));
+      const buffer = c.createBuffer(1, size, c.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i=0;i<size;i++){ data[i] = (Math.random()*2-1) * (1 - i/size); }
+      const src = c.createBufferSource();
+      src.buffer = buffer;
+      const filt = c.createBiquadFilter();
+      filt.type = "bandpass";
+      filt.frequency.value = o.freq || 300;
+      filt.Q.value = 1.2;
+      const gain = c.createGain();
+      const vol = o.vol===undefined ? 0.4 : o.vol;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(vol, t0+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0008, t0+dur);
+      src.connect(filt); filt.connect(gain); gain.connect(master);
+      src.start(t0);
+    }
+
+    return { setEnabled:setEnabled, isEnabled:isEnabled, pulse:pulse, noiseTexture:noiseTexture };
+  })();
+
+  // per-model timbre — identity comes primarily from pitch/wave-shape,
+  // exactly as with the visual system: same restrained vocabulary,
+  // different "voice" per neural system
+  const SOUND_VOICES = {
+    controller: { freq:170, type:"sine" },
+    structured: { freq:660, type:"square" },
+    flowing:    { freq:360, type:"sine" },
+    orbital:    { freq:260, type:"triangle" },
+    pulse:      { freq:920, type:"square" },
+    mechanical: { freq:200, type:"sawtooth" },
+    branching:  { freq:480, type:"triangle" },
+  };
+
+  function playWorkingPattern(entity, voice){
+    const style = entity.variant.soundStyle;
+    if (style === "precise"){ // Coder — rapid precise ticks
+      [0,0.06,0.12].forEach(function(d,i){ AudioEngine.pulse({freq:voice.freq*(1+i*0.06), dur:0.035, type:voice.type, vol:0.30, delay:d}); });
+    } else if (style === "flowing"){ // Researcher — one soft drifting pulse
+      AudioEngine.pulse({freq:voice.freq, dur:0.35, type:voice.type, vol:0.26, slide:1.6});
+    } else if (style === "organized"){ // Planner — one slow low pulse
+      AudioEngine.pulse({freq:voice.freq*0.85, dur:0.30, type:voice.type, vol:0.28});
+    } else if (style === "scan"){ // Tester — tick, tick, tick, response
+      [0,0.09,0.18].forEach(function(d){ AudioEngine.pulse({freq:voice.freq, dur:0.03, type:voice.type, vol:0.26, delay:d}); });
+      AudioEngine.pulse({freq:voice.freq*1.4, dur:0.08, type:voice.type, vol:0.28, delay:0.30});
+    } else if (style === "directional"){ // Computer — command, action, feedback
+      AudioEngine.pulse({freq:voice.freq,      dur:0.05, type:voice.type, vol:0.30, delay:0});
+      AudioEngine.pulse({freq:voice.freq*1.3,  dur:0.06, type:voice.type, vol:0.26, delay:0.10});
+      AudioEngine.pulse({freq:voice.freq*0.9,  dur:0.07, type:voice.type, vol:0.22, delay:0.22});
+    } else if (style === "branch"){ // Git — split into small pulses, then merge
+      [0,0.05,0.10].forEach(function(d,i){ AudioEngine.pulse({freq:voice.freq*(1+i*0.12), dur:0.04, type:voice.type, vol:0.22, delay:d}); });
+      AudioEngine.pulse({freq:voice.freq*0.95, dur:0.10, type:voice.type, vol:0.30, delay:0.22});
+    } else { // "core" — S5, layered processing pulse + soft texture
+      AudioEngine.pulse({freq:voice.freq, dur:0.18, type:voice.type, vol:0.28});
+      AudioEngine.noiseTexture({freq:voice.freq*2, dur:0.22, vol:0.10, delay:0.03});
+    }
+  }
+
+  // maps a visual effect/event name to a restrained, model-flavoured sound.
+  // Every entry here is a discrete, rate-limited EVENT — never a per-frame
+  // or per-signal sound, so this can never spam the listener.
+  function playModelSound(entity, kind){
+    if (!AudioEngine.isEnabled()) return;
+    const voice = SOUND_VOICES[entity.variantKey] || SOUND_VOICES.controller;
+    if (kind === "select"){
+      AudioEngine.pulse({freq:voice.freq*1.2, dur:0.06, type:voice.type, vol:0.35});
+    } else if (kind === "decision"){
+      AudioEngine.pulse({freq:voice.freq*0.9, dur:0.14, type:voice.type, vol:0.5, slide:1.3});
+    } else if (kind === "receive"){
+      AudioEngine.pulse({freq:voice.freq*1.05, dur:0.08, type:voice.type, vol:0.32});
+    } else if (kind === "ack"){
+      AudioEngine.pulse({freq:voice.freq*0.8, dur:0.12, type:voice.type, vol:0.36});
+      AudioEngine.noiseTexture({freq:voice.freq*1.5, dur:0.15, vol:0.10, delay:0.02});
+    } else if (kind === "complete"){
+      AudioEngine.pulse({freq:voice.freq*1.3, dur:0.09, type:voice.type, vol:0.30});
+      AudioEngine.pulse({freq:voice.freq*1.6, dur:0.11, type:voice.type, vol:0.26, delay:0.09});
+    } else if (kind === "warning"){
+      // deliberately restrained and low — never an alarm
+      AudioEngine.pulse({freq:voice.freq*0.55, dur:0.22, type:"sine", vol:0.34, slide:0.75});
+    } else if (kind === "notice"){
+      AudioEngine.pulse({freq:voice.freq*1.4, dur:0.045, type:voice.type, vol:0.14});
+    } else if (kind === "working"){
+      playWorkingPattern(entity, voice);
+    }
+  }
+
 
   /* =================================================================
      MODEL DEFINITIONS
@@ -436,14 +595,126 @@
     git:        "Prepare repository changes",
   };
   const VARIANTS = {
-    controller: { jitterMul:0.65, structuredBase:0,    ringCount:4, ringProminence:1.35, pulseFreq:0,   rotSpeed:0.050, asym:true,  extraShell:true },
-    structured: { jitterMul:0.22, structuredBase:0.22, ringCount:3, ringProminence:0.85, pulseFreq:0,   rotSpeed:0.085, asym:false },
-    flowing:    { jitterMul:1.45, structuredBase:0,    ringCount:2, ringProminence:0.70, pulseFreq:0,   rotSpeed:0.070, asym:false },
-    orbital:    { jitterMul:0.45, structuredBase:0,    ringCount:4, ringProminence:1.45, pulseFreq:0,   rotSpeed:0.095, asym:false },
-    pulse:      { jitterMul:0.55, structuredBase:0,    ringCount:3, ringProminence:0.95, pulseFreq:1.7, rotSpeed:0.100, asym:false },
-    mechanical: { jitterMul:0.18, structuredBase:0.10, ringCount:3, ringProminence:1.00, pulseFreq:0,   rotSpeed:0.140, asym:false, sweep:true },
-    branching:  { jitterMul:0.48, structuredBase:0.06, ringCount:3, ringProminence:1.00, pulseFreq:0,   rotSpeed:0.080, asym:false, branchBlink:true },
+    // S5 — dense multi-layer neural mesh, asymmetric, highest complexity
+    controller: { jitterMul:0.55, structuredBase:0,    ringCount:4, ringProminence:1.30, pulseFreq:0,   rotSpeed:0.045, asym:true,  extraShell:true,
+                  topology:"core-layers", signalRate:420, signalDuration:750, soundStyle:"core" },
+    // Coder — rigid lattice, deterministic node->node->node signal chains
+    structured: { jitterMul:0.14, structuredBase:0.30, ringCount:2, ringProminence:0.70, pulseFreq:0,   rotSpeed:0.095,
+                  topology:"lattice", signalRate:520, signalDuration:420, soundStyle:"precise" },
+    // Researcher — sparse organic branches that fade in/out over time
+    flowing:    { jitterMul:1.50, structuredBase:0,    ringCount:2, ringProminence:0.60, pulseFreq:0,   rotSpeed:0.060,
+                  topology:"branch-dynamic", dynamicTopology:true, signalRate:750, signalDuration:900, soundStyle:"flowing" },
+    // Planner — organized clusters linked by structured hub pathways
+    orbital:    { jitterMul:0.32, structuredBase:0,    ringCount:3, ringProminence:1.15, pulseFreq:0,   rotSpeed:0.050,
+                  topology:"clusters", signalRate:900, signalDuration:800, soundStyle:"organized" },
+    // Tester — sparse mesh + a repeating diagnostic scan band
+    pulse:      { jitterMul:0.40, structuredBase:0,    ringCount:2, ringProminence:0.80, pulseFreq:1.8, rotSpeed:0.110, scanBand:true,
+                  topology:"scan", signalRate:1400, signalDuration:500, soundStyle:"scan" },
+    // Computer — directional meridian pathways, conveyor-like signal flow
+    mechanical: { jitterMul:0.10, structuredBase:0.08, ringCount:2, ringProminence:0.90, pulseFreq:0,   rotSpeed:0.130, sweep:true,
+                  topology:"meridian", signalRate:480, signalDuration:520, soundStyle:"directional" },
+    // Git/Ops — explicit branch + merge tree topology
+    branching:  { jitterMul:0.32, structuredBase:0.05, ringCount:2, ringProminence:0.90, pulseFreq:0,   rotSpeed:0.080,
+                  topology:"tree-merge", signalRate:700, signalDuration:700, soundStyle:"branch" },
   };
+
+  /* =================================================================
+     NEURAL TOPOLOGY — each variant gets a distinct connection graph
+     between its own node indices, generated once at build time. This
+     (plus the signals that travel along it) is what turns a particle
+     cloud into something that reads as a specific neural system.
+  ================================================================= */
+  function buildConnections(particles, variant){
+    const n = particles.length;
+    const conns = [];
+    function add(i,j,alpha){
+      if (i===j || i<0 || j<0 || i>=n || j>=n) return;
+      conns.push({ a:i, b:j, alpha: alpha===undefined?1:alpha, target: alpha===undefined?1:alpha });
+    }
+    const topology = variant.topology;
+
+    if (topology === "lattice"){
+      // Coder — a rigid mesh: short chain links plus periodic cross-braces
+      const step = Math.max(1, Math.floor(n/70));
+      for (let i=0;i<n;i+=step){
+        add(i, i+step);
+        if ((i/step)%3===0) add(i, i+step*2);
+      }
+    } else if (topology === "branch-dynamic"){
+      // Researcher — long, sparse, organic links; half start dormant and
+      // fade in/out over time (see updateResearchTopology)
+      const count = Math.floor(n*0.24);
+      for (let k=0;k<count;k++){
+        const i = Math.floor(Math.random()*n);
+        const spread = (Math.random()-0.5)*n*0.6;
+        const j = Math.floor(clamp(i+spread, 0, n-1));
+        add(i, j, Math.random()<0.5 ? 1 : 0);
+      }
+    } else if (topology === "clusters"){
+      // Planner — nodes grouped into clusters, dense within, linked hub-to-hub
+      const clusterCount = 5;
+      const size = Math.floor(n/clusterCount) || 1;
+      for (let c=0;c<clusterCount;c++){
+        const start = c*size, end = Math.min(n, start+size);
+        for (let i=start;i<end-3;i+=3) add(i, i+3);
+        add(start, ((c+1)%clusterCount)*size);
+      }
+    } else if (topology === "scan"){
+      // Tester — deliberately sparse static mesh; identity comes from the
+      // scanning band (handled per-particle), not from a dense web
+      const count = Math.floor(n*0.05);
+      for (let k=0;k<count;k++){
+        add(Math.floor(Math.random()*n), Math.floor(Math.random()*n));
+      }
+    } else if (topology === "meridian"){
+      // Computer — interleaved "conveyor" bands running across the sphere
+      const bins = 9;
+      const perBin = Math.floor(n/bins);
+      for (let b=0;b<bins;b++){
+        for (let k=0;k<perBin-1;k++){
+          add(b+k*bins, b+(k+1)*bins);
+        }
+      }
+    } else if (topology === "tree-merge"){
+      // Git/Ops — contiguous branch chains that periodically merge back together
+      const branchCount = 8;
+      const branchLen = Math.floor(n/branchCount) || 1;
+      for (let br=0; br<branchCount; br++){
+        const start = br*branchLen;
+        for (let k=0;k+2<branchLen;k+=2) add(start+k, start+k+2);
+      }
+      for (let br=0; br<branchCount; br+=2){
+        const tipA = Math.min(n-1, br*branchLen+branchLen-1);
+        const tipB = Math.min(n-1, ((br+1)%branchCount)*branchLen+branchLen-1);
+        add(tipA, tipB);
+      }
+    } else {
+      // "core-layers" (S5) — dense local mesh plus sparse long asymmetric links
+      const step = Math.max(1, Math.floor(n/120));
+      for (let i=0;i<n;i+=step) add(i, i+step);
+      const longLinks = Math.floor(n*0.05);
+      for (let k=0;k<longLinks;k++){
+        add(Math.floor(Math.random()*n), Math.floor(Math.random()*n), 0.55);
+      }
+    }
+    return conns;
+  }
+
+  // Researcher-only: every couple of seconds, a handful of dormant
+  // branches wake up and a few active ones go dormant — the network
+  // visibly explores rather than sitting static.
+  function updateDynamicTopology(entity, now){
+    if (!entity.nextTopologyFlip || now > entity.nextTopologyFlip){
+      entity.nextTopologyFlip = now + 1500 + Math.random()*1200;
+      const conns = entity.connections;
+      for (let k=0;k<4;k++){
+        const c = conns[Math.floor(Math.random()*conns.length)];
+        if (c) c.target = c.target > 0.5 ? 0 : 1;
+      }
+    }
+    entity.connections.forEach(function(c){ c.alpha = lerp(c.alpha, c.target, 0.04); });
+  }
+
 
   const EFFECT_DURATIONS = {
     lanux:700, think:1900, search:1600, code:1700, warning:2600,
@@ -484,17 +755,20 @@
   const entities = {};
   MODEL_ORDER.forEach(function(id){
     const meta = MODEL_META[id];
+    const variant = VARIANTS[meta.variant];
+    const particles = buildParticles(meta.particles);
     const e = {
-      id:id, name:meta.name, purpose:meta.purpose, role:meta.role, variant:VARIANTS[meta.variant],
-      particles: buildParticles(meta.particles),
+      id:id, name:meta.name, purpose:meta.purpose, role:meta.role, variant:variant, variantKey:meta.variant,
+      particles: particles,
+      connections: buildConnections(particles, variant),
+      signals: [], nextSignalAt: 0, nextTopologyFlip: 0,
       cur:{x:0,y:0,r:10}, target:{x:0,y:0,r:10},
       hoverOffset:{x:0,y:0}, hoverBoost:0, hovered:false,
       mode:"idle", effect:null,
       taskState:"idle", taskText:"", workUntil:0,
       tintUntil:0, tintDuration:0,
       smoothedAmp: id==="s5" ? 0.16 : 0.12,
-      seedA:Math.random()*1000, seedB:Math.random()*1000, seedC:Math.random()*1000,
-      branchAt:0, branchGroup:0
+      seedA:Math.random()*1000, seedB:Math.random()*1000, seedC:Math.random()*1000
     };
     if (id==="s5"){
       e.innerParticles = e.particles.filter(function(_,i){ return i%2===0; });
@@ -570,8 +844,17 @@
     return out;
   }
 
+  // effect names that should also trigger a discrete, rate-limited sound —
+  // maps 1:1 onto playModelSound's kinds; anything not listed stays silent
+  const SOUND_FOR_EFFECT = {
+    decision:"decision", lanux:"receive", ack:"ack",
+    complete:"complete", warning:"warning", notice:"notice", think:"working"
+  };
+
   function triggerWordOn(entity, name){
     entity.effect = { name:name, start:performance.now(), duration:EFFECT_DURATIONS[name]||1200 };
+    const soundKind = SOUND_FOR_EFFECT[name];
+    if (soundKind) playModelSound(entity, soundKind);
   }
 
   function triggerWarning(entityId){
@@ -670,6 +953,7 @@
     activeMain = id;
     computeLayout();
     updateTopLabel();
+    playModelSound(entities[id], "select");
   }
 
   function updateTopLabel(){
@@ -829,7 +1113,10 @@
       triggerWordOn(target, "lanux");
       target.workUntil = performance.now() + s.workDuration;
       setTimeout(function(){
-        if (target.taskState === "receiving") target.taskState = "working";
+        if (target.taskState === "receiving"){
+          target.taskState = "working";
+          playModelSound(target, "working");
+        }
       }, 350);
     } else {
       const src = entities[s.fromId];
@@ -891,9 +1178,9 @@
       tintAmount = clamp((entity.tintUntil-now)/entity.tintDuration, 0, 1);
     }
     tintAmount = Math.max(tintAmount, fx.tint*0.6);
-    const c1 = tintAmount>0.001 ? mixColor(PALETTE.c1, WARN_TINT, tintAmount*0.55) : PALETTE.c1;
-    const c3 = tintAmount>0.001 ? mixColor(PALETTE.c3, WARN_TINT, tintAmount*0.5) : PALETTE.c3;
-    const c4 = tintAmount>0.001 ? mixColor(PALETTE.c4, WARN_TINT, tintAmount*0.4) : PALETTE.c4;
+    const c1 = tintAmount>0.001 ? mixColor(PALETTE.c1, WARN_TINT, tintAmount*0.38) : PALETTE.c1;
+    const c3 = tintAmount>0.001 ? mixColor(PALETTE.c3, WARN_TINT, tintAmount*0.34) : PALETTE.c3;
+    const c4 = tintAmount>0.001 ? mixColor(PALETTE.c4, WARN_TINT, tintAmount*0.26) : PALETTE.c4;
 
     // outer glow
     const glowFlicker = 0.85 + 0.15*Math.sin(t*3.2+entity.seedC)*(0.4+amp);
@@ -940,14 +1227,11 @@
       ctx.restore();
     }
 
-    // branch blink window
-    let branchWindow = -1;
-    if (variant.branchBlink && entity.branchAt){
-      const dt = now - entity.branchAt;
-      if (dt>=0 && dt<300) branchWindow = 1 - dt/300;
-    }
+    // diagnostic scan band (Tester) — a repeating sweep angle that briefly
+    // brightens whichever nodes it currently passes over
+    const scanPhase = variant.scanBand ? (t*1.1 + entity.seedA*0.001) % (Math.PI*2) : null;
 
-    function projectAndDraw(list, radiusMul, colorLean, sizeMul){
+    function projectParticles(list, radiusMul){
       const projected = [];
       for (let i=0;i<list.length;i++){
         const p = list[i];
@@ -980,17 +1264,27 @@
 
         const sx = cx + rx*rad, sy = cy + ry*rad;
         const depth = (rz+1)/2;
+
         let extraAlpha = 0;
-        if (branchWindow>0 && p.group===entity.branchGroup) extraAlpha = 0.5*branchWindow;
+        if (scanPhase !== null){
+          let diff = Math.abs((p.theta % (Math.PI*2)) - scanPhase);
+          if (diff > Math.PI) diff = Math.PI*2 - diff;
+          if (diff < 0.32) extraAlpha = (1 - diff/0.32) * 0.65;
+        }
 
         projected.push({sx:sx, sy:sy, depth:depth, extraAlpha:extraAlpha});
       }
-      projected.sort(function(a,b){ return a.depth-b.depth; });
-      for (let k=0;k<projected.length;k++){
-        const pr = projected[k];
+      return projected; // kept in original index order — connections/signals need direct index lookup
+    }
+
+    function drawNodes(projected, sizeMul){
+      const order = projected.map(function(_,i){ return i; });
+      order.sort(function(a,b){ return projected[a].depth-projected[b].depth; });
+      for (let k=0;k<order.length;k++){
+        const pr = projected[order[k]];
         const size = lerp(0.55,2.1,pr.depth) * (opts.particleScale||1) * sizeMul;
         const alpha = clamp((lerp(0.10,0.85,pr.depth)*(0.55+amp*0.5)) + pr.extraAlpha, 0, 1);
-        const col = mixColor(colorLean===1?c1:c1, c4, pr.depth*0.7 + fx.flash*0.3);
+        const col = mixColor(c1, c4, clamp(pr.depth*0.7 + fx.flash*0.3 + pr.extraAlpha*0.4, 0, 1));
         ctx.beginPath();
         ctx.fillStyle = rgba(col, alpha);
         ctx.arc(pr.sx, pr.sy, size, 0, Math.PI*2);
@@ -998,9 +1292,62 @@
       }
     }
 
-    projectAndDraw(entity.particles, 1, 1, 1);
+    const mainProjected = projectParticles(entity.particles, 1);
+
+    // neural connections — the graph that makes this read as a network
+    // rather than a particle cloud. Alpha is depth-weighted so far-side
+    // links recede, exactly like the nodes they join.
+    const conns = entity.connections;
+    if (conns && conns.length){
+      const lineBase = Math.max(0.4, (opts.lineScale||1)*0.6);
+      for (let ci=0; ci<conns.length; ci++){
+        const c = conns[ci];
+        const gateAlpha = variant.dynamicTopology ? c.alpha : 1;
+        if (gateAlpha <= 0.02) continue;
+        const A = mainProjected[c.a], B = mainProjected[c.b];
+        if (!A || !B) continue;
+        const avgDepth = (A.depth+B.depth)/2;
+        const a = clamp(0.05 + avgDepth*0.20, 0, 0.34) * gateAlpha * (0.55 + amp*0.6) + fx.flash*0.08;
+        ctx.beginPath();
+        ctx.moveTo(A.sx, A.sy);
+        ctx.lineTo(B.sx, B.sy);
+        ctx.strokeStyle = rgba(mixColor(c1,c4,avgDepth*0.45), a);
+        ctx.lineWidth = lineBase * (0.5 + avgDepth*0.6);
+        ctx.stroke();
+      }
+
+      // signals — small pulses traveling along a connection, the visual
+      // equivalent of information moving through the network
+      const activity = 1 + amp*1.6 + (opts.hoverBoost||0)*0.9 + (entity.mode==="listen"||entity.mode==="speak" ? 0.4 : 0);
+      if (now > entity.nextSignalAt){
+        const gap = (variant.signalRate||700) / activity;
+        entity.nextSignalAt = now + gap*(0.7+Math.random()*0.6);
+        let tries = 0, ci;
+        do { ci = Math.floor(Math.random()*conns.length); tries++; }
+        while (variant.dynamicTopology && conns[ci].alpha < 0.5 && tries < 6);
+        entity.signals.push({ ci:ci, start:now, duration: variant.signalDuration||600 });
+      }
+      for (let si=entity.signals.length-1; si>=0; si--){
+        const sig = entity.signals[si];
+        const p2 = (now - sig.start) / sig.duration;
+        if (p2 >= 1){ entity.signals.splice(si,1); continue; }
+        const c = conns[sig.ci];
+        if (!c){ entity.signals.splice(si,1); continue; }
+        const A = mainProjected[c.a], B = mainProjected[c.b];
+        if (!A || !B) continue;
+        const sxp = lerp(A.sx,B.sx,p2), syp = lerp(A.sy,B.sy,p2);
+        const depthp = lerp(A.depth,B.depth,p2);
+        const glowEnv = Math.sin(p2*Math.PI);
+        ctx.beginPath();
+        ctx.fillStyle = rgba(c4, clamp(0.3+depthp*0.6,0,1)*glowEnv);
+        ctx.arc(sxp, syp, lerp(1.1,2.5,depthp)*(opts.particleScale||1), 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    drawNodes(mainProjected, 1);
     if (variant.extraShell && entity.innerParticles){
-      projectAndDraw(entity.innerParticles, 0.52, 1, 0.85);
+      drawNodes(projectParticles(entity.innerParticles, 0.52), 0.85);
     }
 
     // core
@@ -1211,9 +1558,8 @@
         e.hoverOffset.x = lerp(e.hoverOffset.x, 0, 0.15);
         e.hoverOffset.y = lerp(e.hoverOffset.y, 0, 0.15);
       }
-      if (e.variant.branchBlink && now - e.branchAt > 2400){
-        e.branchAt = now;
-        e.branchGroup = Math.floor(Math.random()*24);
+      if (e.variant.dynamicTopology){
+        updateDynamicTopology(e, now);
       }
       if (e.taskState === "working" && now > e.workUntil){
         e.taskState = "returning";
@@ -1353,6 +1699,25 @@
     }, 11200);
   }
   document.getElementById("demoBtn").addEventListener("click", runDemoScenario);
+
+  /* =================================================================
+     SOUND TOGGLE
+  ================================================================= */
+  const soundBtn = document.getElementById("soundBtn");
+  function syncSoundBtn(){
+    const on = AudioEngine.isEnabled();
+    soundBtn.textContent = on ? "♪ SOUND: ON" : "♪ SOUND: OFF";
+    soundBtn.classList.toggle("is-on", on);
+  }
+  soundBtn.addEventListener("click", function(){
+    const next = !AudioEngine.isEnabled();
+    AudioEngine.setEnabled(next); // called inside this click handler so the
+                                   // AudioContext creation/resume counts as
+                                   // a genuine user gesture for autoplay policy
+    syncSoundBtn();
+    if (next) AudioEngine.pulse({freq:520, dur:0.07, type:"sine", vol:0.4});
+  });
+  syncSoundBtn();
 
   /* =================================================================
      INIT
