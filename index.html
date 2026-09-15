@@ -1,24 +1,30 @@
 <!--
-  LANUX BRAIN — VISUAL PROTOTYPE (v3)
+  LANUX BRAIN — VISUAL PROTOTYPE (v4)
   ------------------------------------
   Standalone visual concept for LANUX's MAIN VOICE CONVERSATION INTERFACE:
-  S5 (the controller) plus six specialist models (Coder, Researcher,
-  Planner, Tester, Computer/Automation, Git/Project Ops).
+  LANUX S5 (Commander / Master Orchestrator) plus ten specialist neural
+  systems — Scout, Forge, Architect, Artisan, Sentinel, Vector, Pilot,
+  Memory, Watcher, Hackathon.
 
-  Builds directly on the V2 sphere technology (Fibonacci particle field,
-  layered projection, orbital rings, luminous core, per-model movement
-  variants, effect envelopes, delegation streams) and refines it into a
-  more professional composition:
-    - a spacious "command center" layout — S5 has deliberate negative
-      space around it, specialists orbit further out, no permanent
-      connector lines (only dynamic communication streams)
-    - every sphere has a persistent, subtle name label beneath it
-    - a top "internal activity" panel showing live communication between
-      the user, S5, and the specialists (not a chat box — an activity feed)
-    - a bottom-right "active work" panel showing each specialist's current
-      task and status (WAITING / WORKING / COMPLETE), with a short history
-    - model-to-model ("peer") communication streams in addition to the
-      existing S5 <-> specialist streams
+  Each of the 11 models has its own neural topology (buildConnections),
+  node shape/rendering grammar (drawNodes), nucleus design (drawNucleus),
+  and sound identity (SOUND_VOICES/playWorkingPattern) — the goal is that
+  a viewer can identify the active model from its geometry and motion
+  before reading the label, not just from its colour.
+
+  Composition (measured from the supplied ui.zip references):
+    - S5 dominant and centered, 5 specialists in a fixed left column and
+      5 in a fixed right column (never a circular orbit, never above/below
+      S5), with a right-hand information sidebar that can open/minimize
+      (top-right toggle) and smoothly recenters the whole neural layout
+      into the reclaimed space
+    - a top-center "current model" header + a status pill directly under
+      the giant sphere
+    - a two-part sidebar: INTERNAL ACTIVITY (one message at a time, queued)
+      and ACTIVE WORK + HISTORY
+    - temporary neural communication streams (never permanent connecting
+      lines) for S5 <-> specialist delegation and result-return, plus
+      direct specialist <-> specialist "peer" messages
     - a scripted "run full demo" control that plays out an entire
       delegate -> work -> peer-communication -> complete -> acknowledge
       workflow end to end
@@ -26,18 +32,20 @@
       persistent presence), reacting to delegation, warnings, completion,
       and voice activity regardless of which model is currently focused
 
-  Pure HTML + CSS + vanilla JS. No frameworks, no external assets.
-  No microphone, no speech recognition, no TTS, no backend, no real
-  model inference, no auth — every model "doing work" or "talking" is a
-  visual simulation only. This file is fully self-contained and does not
-  touch any other LANUX project file.
+  Pure HTML + CSS + vanilla JS. No frameworks, no external assets, no
+  external libraries. No microphone, no speech recognition, no TTS, no
+  backend, no real model inference, no auth — every model "doing work" or
+  "talking" is a visual simulation only, and all sound is procedurally
+  synthesized via the Web Audio API (see AudioEngine), optional and off
+  by default. This file is fully self-contained and does not touch any
+  other LANUX project file.
 -->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>LANUX — Voice Interface Concept (v3)</title>
+<title>LANUX — Voice Interface Concept (v4)</title>
 <style>
   :root{
     --c1:#ABBED3;
@@ -636,39 +644,58 @@
     hackathon: "Prototype passwordless login",
   };
   const VARIANTS = {
-    // S5 — dense multi-layer neural mesh, asymmetric, highest complexity
+    // S5 — dense multi-layer neural mesh, asymmetric, highest complexity.
+    // Nodes read as neurons (a faint halo ring on the nearer ones) rather
+    // than decorative dots.
     controller: { jitterMul:0.55, structuredBase:0,    ringCount:4, ringProminence:1.30, pulseFreq:0,   rotSpeed:0.045, asym:true,  extraShell:true,
-                  topology:"core-layers", signalRate:420, signalDuration:750, soundStyle:"core", coreStyle:"nucleus" },
-    // Scout — exploratory web-intelligence network; branches form/fade
+                  topology:"core-layers", signalRate:420, signalDuration:750, soundStyle:"core", coreStyle:"nucleus", nodeShape:"neuron" },
+    // Scout — exploratory web-intelligence network; branches form/fade,
+    // nodes are small outward-pointing "probes" rather than plain dots,
+    // and the topology rewires faster whenever Scout is actually active
     scout:      { jitterMul:1.45, structuredBase:0,    ringCount:2, ringProminence:0.60, pulseFreq:0,   rotSpeed:0.060,
-                  topology:"branch-dynamic", dynamicTopology:true, signalRate:700, signalDuration:850, soundStyle:"flowing", coreStyle:"ping" },
-    // Forge — rigid lattice that periodically manifests as code glyphs
+                  topology:"branch-dynamic", dynamicTopology:true, signalRate:700, signalDuration:850, soundStyle:"flowing", coreStyle:"ping", nodeShape:"teardrop" },
+    // Forge — rigid lattice that periodically manifests as code glyphs;
+    // its non-glyph nodes are small precise blocks, not soft dots
     forge:      { jitterMul:0.16, structuredBase:0.28, ringCount:2, ringProminence:0.65, pulseFreq:0,   rotSpeed:0.10,
-                  topology:"lattice", signalRate:480, signalDuration:400, soundStyle:"precise", codeGlyphs:true, coreStyle:"bracket" },
-    // Architect — nested hierarchical layers, slow and deliberate
-    architect:  { jitterMul:0.16, structuredBase:0.12, ringCount:3, ringProminence:1.05, pulseFreq:0,   rotSpeed:0.040,
-                  topology:"hierarchy", signalRate:1000, signalDuration:850, soundStyle:"measured", coreStyle:"hex" },
-    // Artisan — flowing organic pattern formation, refined and smooth
-    artisan:    { jitterMul:0.75, structuredBase:0,    ringCount:2, ringProminence:0.85, pulseFreq:0,   rotSpeed:0.065,
-                  topology:"morph", signalRate:850, signalDuration:900, soundStyle:"refined", coreStyle:"petal" },
-    // Sentinel — perimeter defense: double shell + scanning arcs
-    sentinel:   { jitterMul:0.22, structuredBase:0.08, ringCount:2, ringProminence:1.0,  pulseFreq:0,   rotSpeed:0.075, extraShell:true, perimeterScan:true,
-                  topology:"perimeter", signalRate:650, signalDuration:450, soundStyle:"diagnostic", coreStyle:"guard" },
-    // Vector — organized clusters linked by structured route pathways
-    vector:     { jitterMul:0.30, structuredBase:0,    ringCount:3, ringProminence:1.10, pulseFreq:0,   rotSpeed:0.050,
-                  topology:"clusters", signalRate:900, signalDuration:800, soundStyle:"organized", coreStyle:"ticks" },
-    // Pilot — directional meridian pathways, conveyor-like command flow
+                  topology:"lattice", signalRate:480, signalDuration:400, soundStyle:"precise", codeGlyphs:true, coreStyle:"bracket", nodeShape:"block" },
+    // Architect — nested hierarchical layers; nodes are structural blocks,
+    // and the whole mesh visibly pulls toward an organized lattice while
+    // Architect is WORKING (deliberate construction, not a random jitter)
+    architect:  { jitterMul:0.16, structuredBase:0.12, ringCount:3, ringProminence:1.05, pulseFreq:0,   rotSpeed:0.040, reorganizeOnWork:0.30,
+                  topology:"hierarchy", signalRate:1000, signalDuration:850, soundStyle:"measured", coreStyle:"hex", nodeShape:"layer" },
+    // Artisan — flowing organic pattern formation; soft blurred nodes, and
+    // a gentler version of the same reorganize-on-work pull reads as
+    // "refinement" rather than "construction"
+    artisan:    { jitterMul:0.75, structuredBase:0,    ringCount:2, ringProminence:0.85, pulseFreq:0,   rotSpeed:0.065, reorganizeOnWork:0.14,
+                  topology:"morph", signalRate:850, signalDuration:900, soundStyle:"refined", coreStyle:"petal", nodeShape:"soft" },
+    // Sentinel — perimeter defense: double shell + scanning arcs; nodes
+    // render as short perimeter tick-marks, and WARNING selectively lights
+    // only the outer-shell nodes instead of tinting the whole sphere
+    sentinel:   { jitterMul:0.22, structuredBase:0.08, ringCount:2, ringProminence:1.0,  pulseFreq:0,   rotSpeed:0.075, extraShell:true, perimeterScan:true, selectiveWarning:true,
+                  topology:"perimeter", signalRate:650, signalDuration:450, soundStyle:"diagnostic", coreStyle:"guard", nodeShape:"tick" },
+    // Vector — organized clusters linked by route pathways; nodes are
+    // small diamond waypoints, and WORKING converges all signal traffic
+    // onto one "chosen route" while the rest of the mesh dims
+    vector:     { jitterMul:0.30, structuredBase:0,    ringCount:3, ringProminence:1.10, pulseFreq:0,   rotSpeed:0.050, routeConverge:true,
+                  topology:"clusters", signalRate:900, signalDuration:800, soundStyle:"organized", coreStyle:"ticks", nodeShape:"waypoint" },
+    // Pilot — directional meridian pathways; nodes are short radial dashes
+    // that visually point the direction signals travel
     pilot:      { jitterMul:0.10, structuredBase:0.08, ringCount:2, ringProminence:0.90, pulseFreq:0,   rotSpeed:0.130, sweep:true,
-                  topology:"meridian", signalRate:460, signalDuration:500, soundStyle:"directional", coreStyle:"arrow" },
-    // Memory — associative clusters; one activation propagates to neighbors
+                  topology:"meridian", signalRate:460, signalDuration:500, soundStyle:"directional", coreStyle:"arrow", nodeShape:"dash" },
+    // Memory — associative clusters; nodes render as tight twin pairs, a
+    // visual shorthand for "this node is linked to something nearby"
     memory:     { jitterMul:0.26, structuredBase:0,    ringCount:2, ringProminence:0.85, pulseFreq:0,   rotSpeed:0.045,
-                  topology:"associative", signalRate:820, signalDuration:950, soundStyle:"soft", coreStyle:"ripple" },
-    // Watcher — sparse mesh + a repeating diagnostic scan band
-    watcher:    { jitterMul:0.34, structuredBase:0,    ringCount:2, ringProminence:0.80, pulseFreq:1.6, rotSpeed:0.095, scanBand:true,
-                  topology:"scan", signalRate:1300, signalDuration:480, soundStyle:"scan", coreStyle:"iris" },
-    // Hackathon — rapidly rewiring, unconventional but controlled
+                  topology:"associative", signalRate:820, signalDuration:950, soundStyle:"soft", coreStyle:"ripple", nodeShape:"pair" },
+    // Watcher — distributed inspection network; nodes are tiny crosshair
+    // marks, and TWO independent scan bands sweep at different speeds so
+    // multiple regions are visibly being checked at once, not just one
+    watcher:    { jitterMul:0.34, structuredBase:0,    ringCount:2, ringProminence:0.80, pulseFreq:1.6, rotSpeed:0.095, scanBand:true, scanBand2:true,
+                  topology:"scan", signalRate:1300, signalDuration:480, soundStyle:"scan", coreStyle:"iris", nodeShape:"cross" },
+    // Hackathon — rapidly rewiring, unconventional but controlled; nodes
+    // are small irregular sparks, and the rewiring itself accelerates
+    // further while WORKING (visibly trying alternatives) before easing
     hackathon:  { jitterMul:0.9,  structuredBase:0,    ringCount:2, ringProminence:0.75, pulseFreq:0,   rotSpeed:0.11, dynamicTopology:true, fastFlip:true,
-                  topology:"adaptive", signalRate:560, signalDuration:520, soundStyle:"experimental", coreStyle:"flicker" },
+                  topology:"adaptive", signalRate:560, signalDuration:520, soundStyle:"experimental", coreStyle:"flicker", nodeShape:"spark" },
   };
 
 
@@ -802,12 +829,17 @@
   // links wake up and a few active ones go dormant — the network visibly
   // rewires itself rather than sitting static. Hackathon flips faster and
   // touches more links per cycle, per its "rapid restructuring" identity.
+  // Either variant rewires noticeably faster while actually active (voice
+  // state or task state), then eases back to its calmer idle rate —
+  // Hackathon's WORKING state reads as "trying alternatives before settling".
   function updateDynamicTopology(entity, now){
     const fast = !!entity.variant.fastFlip;
+    const busy = entity.taskState!=="idle" || entity.mode!=="idle";
     if (!entity.nextTopologyFlip || now > entity.nextTopologyFlip){
-      entity.nextTopologyFlip = now + (fast ? (500+Math.random()*500) : (1500+Math.random()*1200));
+      const intervalBase = fast ? (500+Math.random()*500) : (1500+Math.random()*1200);
+      entity.nextTopologyFlip = now + (busy ? intervalBase*0.45 : intervalBase);
       const conns = entity.connections;
-      const flips = fast ? 9 : 4;
+      const flips = Math.round((fast ? 9 : 4) * (busy ? 1.6 : 1));
       for (let k=0;k<flips;k++){
         const c = conns[Math.floor(Math.random()*conns.length)];
         if (c) c.target = c.target > 0.5 ? 0 : 1;
@@ -862,7 +894,7 @@
       id:id, name:meta.name, purpose:meta.purpose, role:meta.role, variant:variant, variantKey:meta.variant,
       particles: particles,
       connections: buildConnections(particles, variant),
-      signals: [], nextSignalAt: 0, nextTopologyFlip: 0,
+      signals: [], nextSignalAt: 0, nextTopologyFlip: 0, chosenRoute: null,
       cur:{x:0,y:0,r:10}, target:{x:0,y:0,r:10},
       hoverOffset:{x:0,y:0}, hoverBoost:0, hovered:false,
       mode:"idle", effect:null,
@@ -1374,9 +1406,11 @@
       });
     }
 
-    // diagnostic scan band (Watcher) — a repeating sweep angle that briefly
-    // brightens whichever nodes it currently passes over
+    // diagnostic scan band(s) (Watcher) — one or two independent repeating
+    // sweep angles that briefly brighten whichever nodes they pass over,
+    // reading as multiple regions being inspected rather than one
     const scanPhase = variant.scanBand ? (t*1.1 + entity.seedA*0.001) % (Math.PI*2) : null;
+    const scanPhase2 = variant.scanBand2 ? (t*0.7 + Math.PI + entity.seedB*0.001) % (Math.PI*2) : null;
 
     function projectParticles(list, radiusMul){
       const projected = [];
@@ -1386,7 +1420,7 @@
                         + 0.03*variant.jitterMul*Math.sin(t*p.freq2+p.seed2+i*0.01);
 
         let vx=p.x0, vy=p.y0, vz=p.z0;
-        const structAmt = clamp(variant.structuredBase + fx.structured, 0, 1);
+        const structAmt = clamp(variant.structuredBase + fx.structured + (variant.reorganizeOnWork && entity.taskState==="working" ? variant.reorganizeOnWork : 0), 0, 1);
         if (structAmt > 0.001){
           const sv = structuredVector(p);
           vx = lerp(vx, sv.x, structAmt);
@@ -1418,6 +1452,18 @@
           if (diff > Math.PI) diff = Math.PI*2 - diff;
           if (diff < 0.32) extraAlpha = (1 - diff/0.32) * 0.65;
         }
+        if (scanPhase2 !== null){
+          let diff2 = Math.abs((p.theta % (Math.PI*2)) - scanPhase2);
+          if (diff2 > Math.PI) diff2 = Math.PI*2 - diff2;
+          if (diff2 < 0.26) extraAlpha = Math.max(extraAlpha, (1 - diff2/0.26) * 0.55);
+        }
+
+        // Sentinel — a warning selectively lights only outer-shell (high
+        // distIndex) nodes instead of tinting every node in the sphere
+        let warnMask = 1;
+        if (variant.selectiveWarning){
+          warnMask = p.distIndex > 0.55 ? 1 : 0.12;
+        }
 
         let isGlyph = false, glyphChar = null;
         if (variant.codeGlyphs){
@@ -1432,7 +1478,7 @@
           }
         }
 
-        projected.push({sx:sx, sy:sy, depth:depth, extraAlpha:extraAlpha, isGlyph:isGlyph, glyphChar:glyphChar});
+        projected.push({sx:sx, sy:sy, depth:depth, extraAlpha:extraAlpha, isGlyph:isGlyph, glyphChar:glyphChar, warnMask:warnMask});
       }
       return projected; // kept in original index order — connections/signals need direct index lookup
     }
@@ -1440,11 +1486,22 @@
     function drawNodes(projected, sizeMul){
       const order = projected.map(function(_,i){ return i; });
       order.sort(function(a,b){ return projected[a].depth-projected[b].depth; });
+      const shape = variant.nodeShape || "dot";
       for (let k=0;k<order.length;k++){
         const pr = projected[order[k]];
         const size = lerp(0.55,2.1,pr.depth) * (opts.particleScale||1) * sizeMul;
         const alpha = clamp((lerp(0.10,0.85,pr.depth)*(0.55+amp*0.5)) + pr.extraAlpha, 0, 1);
-        const col = mixColor(c1, c4, clamp(pr.depth*0.7 + fx.flash*0.3 + pr.extraAlpha*0.4, 0, 1));
+
+        // Sentinel: warning tint only applies to the selected (outer-shell)
+        // nodes — everything else keeps reading as normal LANUX blue-grey
+        let nodeC1 = c1, nodeC4 = c4;
+        if (variant.selectiveWarning && tintAmount>0.001 && pr.warnMask<0.99){
+          const eff = tintAmount*pr.warnMask;
+          nodeC1 = mixColor(PALETTE.c1, WARN_TINT, eff*0.38);
+          nodeC4 = mixColor(PALETTE.c4, WARN_TINT, eff*0.26);
+        }
+        const col = mixColor(nodeC1, nodeC4, clamp(pr.depth*0.7 + fx.flash*0.3 + pr.extraAlpha*0.4, 0, 1));
+
         if (pr.isGlyph){
           const fontSize = Math.max(5, lerp(6,11,pr.depth) * (opts.particleScale||1) * sizeMul);
           ctx.font = fontSize + "px 'SF Mono', 'Courier New', monospace";
@@ -1452,9 +1509,89 @@
           ctx.textBaseline = "middle";
           ctx.fillStyle = rgba(col, clamp(alpha*1.1,0,1));
           ctx.fillText(pr.glyphChar, pr.sx, pr.sy);
-        } else {
+          continue;
+        }
+
+        // outward direction from sphere center — used by shapes that need
+        // an orientation (dashes, teardrops, ticks) without extra state
+        const odx = pr.sx-cx, ody = pr.sy-cy;
+        const odist = Math.sqrt(odx*odx+ody*ody) || 1;
+        const ux = odx/odist, uy = ody/odist;
+
+        ctx.fillStyle = rgba(col, alpha);
+        ctx.strokeStyle = rgba(col, alpha);
+
+        if (shape === "block"){ // Forge — small precise square
+          const s = size*1.5;
+          ctx.save(); ctx.translate(pr.sx,pr.sy); ctx.rotate(t*0.08+pr.depth*2);
+          ctx.fillRect(-s/2,-s/2,s,s);
+          ctx.restore();
+        } else if (shape === "layer"){ // Architect — a short horizontal structural bar
+          const w = size*2.4, h = size*0.7;
+          ctx.fillRect(pr.sx-w/2, pr.sy-h/2, w, h);
+        } else if (shape === "waypoint"){ // Vector — small diamond
+          const s = size*1.6;
+          ctx.save(); ctx.translate(pr.sx,pr.sy); ctx.rotate(Math.PI/4);
+          ctx.fillRect(-s/2,-s/2,s,s);
+          ctx.restore();
+        } else if (shape === "dash"){ // Pilot — short radial directional dash
+          const len = size*2.4;
           ctx.beginPath();
-          ctx.fillStyle = rgba(col, alpha);
+          ctx.moveTo(pr.sx-ux*len*0.5, pr.sy-uy*len*0.5);
+          ctx.lineTo(pr.sx+ux*len*0.5, pr.sy+uy*len*0.5);
+          ctx.lineWidth = Math.max(0.6, size*0.6);
+          ctx.stroke();
+        } else if (shape === "tick"){ // Sentinel — short tangent perimeter mark
+          const len = size*2.0;
+          ctx.beginPath();
+          ctx.moveTo(pr.sx-uy*len*0.5, pr.sy+ux*len*0.5);
+          ctx.lineTo(pr.sx+uy*len*0.5, pr.sy-ux*len*0.5);
+          ctx.lineWidth = Math.max(0.6, size*0.55);
+          ctx.stroke();
+        } else if (shape === "cross"){ // Watcher — tiny inspection crosshair
+          const s = size*1.3;
+          ctx.lineWidth = Math.max(0.5, size*0.45);
+          ctx.beginPath(); ctx.moveTo(pr.sx-s,pr.sy); ctx.lineTo(pr.sx+s,pr.sy); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(pr.sx,pr.sy-s); ctx.lineTo(pr.sx,pr.sy+s); ctx.stroke();
+        } else if (shape === "pair"){ // Memory — tight associative twin dots
+          const off = size*1.1;
+          ctx.beginPath(); ctx.arc(pr.sx-off*0.5*uy, pr.sy+off*0.5*ux, size*0.6, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(pr.sx+off*0.5*uy, pr.sy-off*0.5*ux, size*0.6, 0, Math.PI*2); ctx.fill();
+        } else if (shape === "teardrop"){ // Scout — small outward-pointing probe
+          ctx.save(); ctx.translate(pr.sx,pr.sy); ctx.rotate(Math.atan2(uy,ux));
+          ctx.beginPath();
+          ctx.ellipse(0,0, size*1.7, size*0.85, 0, 0, Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+        } else if (shape === "soft"){ // Artisan — soft blurred refined node
+          const grad = ctx.createRadialGradient(pr.sx,pr.sy,0, pr.sx,pr.sy, size*2.2);
+          grad.addColorStop(0, rgba(col, alpha));
+          grad.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.fillStyle = grad;
+          ctx.beginPath(); ctx.arc(pr.sx,pr.sy, size*2.2, 0, Math.PI*2); ctx.fill();
+        } else if (shape === "spark"){ // Hackathon — small irregular unstable mark
+          const jitter = Math.sin(t*6+pr.sx*0.7)*0.5+0.5;
+          const sides = 3;
+          ctx.beginPath();
+          for (let s=0;s<sides;s++){
+            const ang = (s/sides)*Math.PI*2 + t*1.4 + pr.sy*0.01;
+            const rr = size*(1.2+jitter*0.9);
+            const px = pr.sx+Math.cos(ang)*rr, py = pr.sy+Math.sin(ang)*rr;
+            if (s===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        } else if (shape === "neuron"){ // S5 — a dot with a faint synapse halo
+          ctx.beginPath(); ctx.arc(pr.sx,pr.sy,size,0,Math.PI*2); ctx.fill();
+          if (pr.depth > 0.6){
+            ctx.beginPath();
+            ctx.arc(pr.sx,pr.sy, size*2.2, 0, Math.PI*2);
+            ctx.strokeStyle = rgba(col, alpha*0.28);
+            ctx.lineWidth = 0.6;
+            ctx.stroke();
+          }
+        } else { // plain dot — fallback, currently unused by any of the 11
+          ctx.beginPath();
           ctx.arc(pr.sx, pr.sy, size, 0, Math.PI*2);
           ctx.fill();
         }
@@ -1468,10 +1605,25 @@
     // links recede, exactly like the nodes they join.
     const conns = entity.connections;
     if (conns && conns.length){
+      // Vector — while WORKING, traffic converges onto one "chosen route"
+      // and everything else visibly dims, reading as a decided strategy
+      if (variant.routeConverge){
+        if (entity.taskState === "working"){
+          if (entity.chosenRoute == null || entity.chosenRoute >= conns.length){
+            entity.chosenRoute = Math.floor(Math.random()*conns.length);
+          }
+        } else if (entity.taskState === "idle"){
+          entity.chosenRoute = null;
+        }
+      }
+
       const lineBase = Math.max(0.4, (opts.lineScale||1)*0.6);
       for (let ci=0; ci<conns.length; ci++){
         const c = conns[ci];
-        const gateAlpha = variant.dynamicTopology ? c.alpha : 1;
+        let gateAlpha = variant.dynamicTopology ? c.alpha : 1;
+        if (variant.routeConverge && entity.chosenRoute != null){
+          gateAlpha *= (ci === entity.chosenRoute) ? 1.7 : 0.12;
+        }
         if (gateAlpha <= 0.02) continue;
         const A = mainProjected[c.a], B = mainProjected[c.b];
         if (!A || !B) continue;
@@ -1494,6 +1646,7 @@
         let tries = 0, ci;
         do { ci = Math.floor(Math.random()*conns.length); tries++; }
         while (variant.dynamicTopology && conns[ci].alpha < 0.5 && tries < 6);
+        if (variant.routeConverge && entity.chosenRoute != null && Math.random()<0.75) ci = entity.chosenRoute;
         entity.signals.push({ ci:ci, start:now, duration: variant.signalDuration||600 });
       }
       for (let si=entity.signals.length-1; si>=0; si--){
@@ -1938,7 +2091,7 @@
   /* =================================================================
      FULL DEMONSTRATION SCENARIO
      A scripted end-to-end workflow: speak -> S5 decides -> delegates to
-     four specialists -> they work -> a peer (tester<->coder) exchange
+     four specialists -> they work -> a peer (watcher<->forge) exchange
      happens mid-flight -> each specialist returns results to S5 -> S5
      acknowledges. Purely a choreographed visual sequence.
   ================================================================= */
