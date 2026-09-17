@@ -429,6 +429,14 @@
   function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
   function mixColor(c1,c2,t){ return {r:lerp(c1.r,c2.r,t), g:lerp(c1.g,c2.g,t), b:lerp(c1.b,c2.b,t)}; }
 
+  // Originkit "Particle Surge"-style envelope: exponential decay times a
+  // cosine, so an event fires outward, overshoots, rings back and settles
+  // — used for decision/acknowledge/completion pulses instead of a plain
+  // sine hump, giving communication events a physical "impulse" feel.
+  function elasticSurge(p){
+    return Math.exp(-p*5.5) * Math.cos(p*Math.PI*2.4);
+  }
+
   /* =================================================================
      PROCEDURAL AUDIO — tiny Web Audio synth engine. No external audio
      files of any kind; every sound is a synthesized oscillator/noise
@@ -648,53 +656,69 @@
     // Nodes read as neurons (a faint halo ring on the nearer ones) rather
     // than decorative dots.
     controller: { jitterMul:0.55, structuredBase:0,    ringCount:4, ringProminence:1.30, pulseFreq:0,   rotSpeed:0.045, asym:true,  extraShell:true,
+                  gimbalLayers:3, harmonicShell:{lobes:3,rings:2,ampFactor:0.05}, liquidWave:{count:2,speed:0.3,ampFactor:0.018}, surgeAmount:1.3,
                   topology:"core-layers", signalRate:420, signalDuration:750, soundStyle:"core", coreStyle:"nucleus", nodeShape:"neuron" },
     // Scout — exploratory web-intelligence network; branches form/fade,
     // nodes are small outward-pointing "probes" rather than plain dots,
     // and the topology rewires faster whenever Scout is actually active
     scout:      { jitterMul:1.45, structuredBase:0,    ringCount:2, ringProminence:0.60, pulseFreq:0,   rotSpeed:0.060,
+                  liquidWave:{count:5,speed:0.8,ampFactor:0.035}, surgeAmount:0.8,
                   topology:"branch-dynamic", dynamicTopology:true, signalRate:700, signalDuration:850, soundStyle:"flowing", coreStyle:"ping", nodeShape:"teardrop" },
     // Forge — rigid lattice that periodically manifests as code glyphs;
     // its non-glyph nodes are small precise blocks, not soft dots
     forge:      { jitterMul:0.16, structuredBase:0.28, ringCount:2, ringProminence:0.65, pulseFreq:0,   rotSpeed:0.10,
+                  gimbalLayers:2, surgeAmount:0.9,
                   topology:"lattice", signalRate:480, signalDuration:400, soundStyle:"precise", codeGlyphs:true, coreStyle:"bracket", nodeShape:"block" },
     // Architect — nested hierarchical layers; nodes are structural blocks,
     // and the whole mesh visibly pulls toward an organized lattice while
     // Architect is WORKING (deliberate construction, not a random jitter)
     architect:  { jitterMul:0.16, structuredBase:0.12, ringCount:3, ringProminence:1.05, pulseFreq:0,   rotSpeed:0.040, reorganizeOnWork:0.30,
+                  gimbalLayers:2, surgeAmount:0.85,
                   topology:"hierarchy", signalRate:1000, signalDuration:850, soundStyle:"measured", coreStyle:"hex", nodeShape:"layer" },
     // Artisan — flowing organic pattern formation; soft blurred nodes, and
     // a gentler version of the same reorganize-on-work pull reads as
     // "refinement" rather than "construction"
     artisan:    { jitterMul:0.75, structuredBase:0,    ringCount:2, ringProminence:0.85, pulseFreq:0,   rotSpeed:0.065, reorganizeOnWork:0.14,
+                  harmonicShell:{lobes:4,rings:3,ampFactor:0.06}, liquidWave:{count:3,speed:0.4,ampFactor:0.04}, surgeAmount:0.8,
                   topology:"morph", signalRate:850, signalDuration:900, soundStyle:"refined", coreStyle:"petal", nodeShape:"soft" },
     // Sentinel — perimeter defense: double shell + scanning arcs; nodes
     // render as short perimeter tick-marks, and WARNING selectively lights
     // only the outer-shell nodes instead of tinting the whole sphere
     sentinel:   { jitterMul:0.22, structuredBase:0.08, ringCount:2, ringProminence:1.0,  pulseFreq:0,   rotSpeed:0.075, extraShell:true, perimeterScan:true, selectiveWarning:true,
+                  harmonicShell:{lobes:6,rings:2,ampFactor:0.032}, surgeAmount:1.0,
                   topology:"perimeter", signalRate:650, signalDuration:450, soundStyle:"diagnostic", coreStyle:"guard", nodeShape:"tick" },
     // Vector — organized clusters linked by route pathways; nodes are
     // small diamond waypoints, and WORKING converges all signal traffic
     // onto one "chosen route" while the rest of the mesh dims
     vector:     { jitterMul:0.30, structuredBase:0,    ringCount:3, ringProminence:1.10, pulseFreq:0,   rotSpeed:0.050, routeConverge:true,
+                  surgeAmount:1.5,
                   topology:"clusters", signalRate:900, signalDuration:800, soundStyle:"organized", coreStyle:"ticks", nodeShape:"waypoint" },
     // Pilot — directional meridian pathways; nodes are short radial dashes
     // that visually point the direction signals travel
     pilot:      { jitterMul:0.10, structuredBase:0.08, ringCount:2, ringProminence:0.90, pulseFreq:0,   rotSpeed:0.130, sweep:true,
+                  surgeAmount:1.5,
                   topology:"meridian", signalRate:460, signalDuration:500, soundStyle:"directional", coreStyle:"arrow", nodeShape:"dash" },
     // Memory — associative clusters; nodes render as tight twin pairs, a
     // visual shorthand for "this node is linked to something nearby"
     memory:     { jitterMul:0.26, structuredBase:0,    ringCount:2, ringProminence:0.85, pulseFreq:0,   rotSpeed:0.045,
+                  gimbalLayers:2, surgeAmount:0.8,
                   topology:"associative", signalRate:820, signalDuration:950, soundStyle:"soft", coreStyle:"ripple", nodeShape:"pair" },
     // Watcher — distributed inspection network; nodes are tiny crosshair
     // marks, and TWO independent scan bands sweep at different speeds so
-    // multiple regions are visibly being checked at once, not just one
+    // multiple regions are visibly being checked at once, not just one.
+    // Deliberately no harmonic shell / gimbal layers here — that visual
+    // vocabulary belongs to Sentinel, and Watcher must read as distinct
+    // (observation/verification, not perimeter defense).
     watcher:    { jitterMul:0.34, structuredBase:0,    ringCount:2, ringProminence:0.80, pulseFreq:1.6, rotSpeed:0.095, scanBand:true, scanBand2:true,
+                  surgeAmount:0.9,
                   topology:"scan", signalRate:1300, signalDuration:480, soundStyle:"scan", coreStyle:"iris", nodeShape:"cross" },
     // Hackathon — rapidly rewiring, unconventional but controlled; nodes
-    // are small irregular sparks, and the rewiring itself accelerates
-    // further while WORKING (visibly trying alternatives) before easing
+    // are small irregular sparks, the rewiring itself accelerates further
+    // while WORKING (visibly trying alternatives) before easing, and a
+    // shifting-frequency liquid wave reads as deliberate structural
+    // mutation rather than random noise
     hackathon:  { jitterMul:0.9,  structuredBase:0,    ringCount:2, ringProminence:0.75, pulseFreq:0,   rotSpeed:0.11, dynamicTopology:true, fastFlip:true,
+                  liquidWave:{count:7,speed:1.2,ampFactor:0.045,erratic:true}, surgeAmount:1.1,
                   topology:"adaptive", signalRate:560, signalDuration:520, soundStyle:"experimental", coreStyle:"flicker", nodeShape:"spark" },
   };
 
@@ -916,12 +940,17 @@
   /* =================================================================
      EFFECT ENVELOPES
   ================================================================= */
-  function effectParams(name, p){
+  function effectParams(name, p, variant){
     const out = { ampAdd:0, coreAdd:0, ringAdd:0, structured:0, spiral:0, ripple:0, ripplePhase:0, rotBoost:0, flash:0, tint:0 };
+    const surgeAmt = (variant && variant.surgeAmount) || 1;
 
     if (name==="lanux" || name==="complete"){
       const e = Math.exp(-p*7.5);
       out.flash=e; out.coreAdd=e*0.9; out.ringAdd=Math.sin(p*Math.PI)*0.35; out.ampAdd=e*0.5;
+      // Originkit "Particle Surge" — the absorbed/completed pulse rings
+      // back and overshoots slightly rather than just decaying smoothly
+      const surge = elasticSurge(p)*0.14*surgeAmt;
+      out.ampAdd += surge; out.ringAdd += surge*0.8;
       return out;
     }
     if (name==="think"){
@@ -967,11 +996,18 @@
       const env=Math.sin(p*Math.PI);
       out.coreAdd=env*1.0; out.ringAdd=-0.12*env+0.05*Math.sin(p*Math.PI*2);
       out.ampAdd=env*0.25; out.flash=env*0.15;
+      // the concentrated burst is followed by an outward directional
+      // surge — fires, overshoots the shell, rings back — this is the
+      // "decision -> outward pulse" the delegation communication needs
+      const surge = elasticSurge(p)*0.20*surgeAmt;
+      out.ampAdd += surge; out.ringAdd += surge*0.9;
       return out;
     }
     if (name==="ack"){
       const env=Math.sin(p*Math.PI);
       out.coreAdd=env*0.55; out.ampAdd=env*0.15; out.ringAdd=env*0.10;
+      const surge = elasticSurge(p)*0.12*surgeAmt;
+      out.coreAdd += Math.max(0,surge);
       return out;
     }
     return out;
@@ -1310,7 +1346,7 @@
     let fx = { ampAdd:0, coreAdd:0, ringAdd:0, structured:0, spiral:0, ripple:0, ripplePhase:0, rotBoost:0, flash:0, tint:0 };
     if (entity.effect){
       const p = clamp((now-entity.effect.start)/entity.effect.duration, 0, 1);
-      fx = effectParams(entity.effect.name, p);
+      fx = effectParams(entity.effect.name, p, variant);
       if (p>=1) entity.effect=null;
     }
 
@@ -1332,6 +1368,25 @@
 
     const cosY=Math.cos(rotY), sinY=Math.sin(rotY), cosX=Math.cos(rotX), sinX=Math.sin(rotX);
 
+    // Originkit "Particle Gimbal" — independent depth layers spun at their
+    // own integer turn-ratio (plus a counter-rotating layer), each tipped
+    // to its own tilt, rather than the whole sphere turning as one rigid
+    // body. Layers diverge further apart under activity (thinking/working)
+    // and settle close together at idle.
+    const gimbalLayers = variant.gimbalLayers || 0;
+    let layerRot = null;
+    if (gimbalLayers > 0){
+      const ratios = [1, -2, 2, 3];
+      const tiltOffsets = [0, 0.32, -0.26, 0.42];
+      const diverge = 1 + amp*0.6;
+      layerRot = [];
+      for (let L=0; L<gimbalLayers; L++){
+        const lRotY = t*rotSpeed*ratios[L % ratios.length]*diverge + entity.seedC*0.001*(L+1) + (opts.phaseOffset||0);
+        const lRotX = rotX + tiltOffsets[L % tiltOffsets.length];
+        layerRot.push({ cosY:Math.cos(lRotY), sinY:Math.sin(lRotY), cosX:Math.cos(lRotX), sinX:Math.sin(lRotX) });
+      }
+    }
+
     // tint blend (warning warmth)
     let tintAmount = 0;
     if (entity.tintUntil && now < entity.tintUntil && entity.tintDuration){
@@ -1351,6 +1406,33 @@
     gGrad.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = gGrad;
     ctx.beginPath(); ctx.arc(cx,cy,outerGlowR,0,Math.PI*2); ctx.fill();
+
+    // Originkit "Harmonic Shell" — a deforming outer boundary whose radius
+    // is a sum of sine terms (lobes wrapping the equator, rings running
+    // pole-to-pole), with the wave counts drifting continuously so the
+    // form breathes rather than snapping between shapes. Reads as a
+    // protective/structural membrane around the neural core, distinct
+    // from the core's own particles and rings.
+    if (variant.harmonicShell){
+      const hs = variant.harmonicShell;
+      const shellR = sphereR*(1.12+amp*0.06);
+      const lobeCount = hs.lobes + Math.sin(t*0.05+entity.seedA*0.001)*0.4;
+      const ringCountHs = hs.rings + Math.sin(t*0.04+entity.seedB*0.001)*0.3;
+      const ampNow = hs.ampFactor*(0.6+amp*0.9)*(1+fx.flash*0.8);
+      ctx.beginPath();
+      const steps = 72;
+      for (let s=0;s<=steps;s++){
+        const ang = (s/steps)*Math.PI*2;
+        const wobble = Math.sin(ang*lobeCount + t*0.18) + 0.6*Math.sin(ang*ringCountHs*0.5 - t*0.12);
+        const r = shellR * (1 + wobble*ampNow);
+        const px = cx + Math.cos(ang)*r, py = cy + Math.sin(ang)*r*0.94;
+        if (s===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = rgba(c4, 0.14 + amp*0.10 + fx.flash*0.12);
+      ctx.lineWidth = Math.max(0.7, (opts.lineScale||1)*0.85);
+      ctx.stroke();
+    }
 
     // rings
     const ringCount = variant.ringCount;
@@ -1434,14 +1516,29 @@
           const wave = Math.sin((p.distIndex*10 - fx.ripplePhase*14));
           radialScale *= (1 + Math.max(0,wave)*fx.ripple*0.35);
         }
+        // Originkit "Liquid Sphere" / "Harmonic Shell" principle — a
+        // coherent low-frequency wave travels across the whole surface
+        // (a function of angular position and time), rather than each
+        // particle jittering independently. Reads as breathing/rippling
+        // instead of noise. "erratic" (Hackathon) drifts its own wave
+        // count over time so the mutation itself feels intentional.
+        if (variant.liquidWave){
+          const lw = variant.liquidWave;
+          const count = lw.erratic ? lw.count + Math.sin(t*0.17+entity.seedB*0.002)*2.2 : lw.count;
+          const wave2 = Math.sin(p.theta*count - t*lw.speed + entity.seedA*0.001);
+          radialScale *= (1 + wave2*lw.ampFactor*(0.5+amp*0.8));
+        }
         radialScale *= (1 + amp*0.10);
         radialScale *= radiusMul;
 
         const rad = sphereR * radialScale;
-        let rx = vx*cosY - vz*sinY;
-        let rz = vx*sinY + vz*cosY;
-        let ry = vy*cosX - rz*sinX;
-        rz = vy*sinX + rz*cosX;
+        const rs = layerRot ? layerRot[i % gimbalLayers] : null;
+        const rCosY = rs ? rs.cosY : cosY, rSinY = rs ? rs.sinY : sinY;
+        const rCosX = rs ? rs.cosX : cosX, rSinX = rs ? rs.sinX : sinX;
+        let rx = vx*rCosY - vz*rSinY;
+        let rz = vx*rSinY + vz*rCosY;
+        let ry = vy*rCosX - rz*rSinX;
+        rz = vy*rSinX + rz*rCosX;
 
         const sx = cx + rx*rad, sy = cy + ry*rad;
         const depth = (rz+1)/2;
