@@ -1,10 +1,9 @@
 <!--
-  LANUX BRAIN — VISUAL PROTOTYPE (v4)
+  LANUX — INTELLIGENCE INTERFACE
   ------------------------------------
-  Standalone visual concept for LANUX's MAIN VOICE CONVERSATION INTERFACE:
-  LANUX S5 (Commander / Master Orchestrator) plus ten specialist neural
-  systems — Scout, Forge, Architect, Artisan, Sentinel, Vector, Pilot,
-  Memory, Watcher, Hackathon.
+  LANUX's MAIN VOICE CONVERSATION INTERFACE: LANUX S5 (Commander / Master
+  Orchestrator) plus ten specialist neural systems — Scout, Forge,
+  Architect, Artisan, Sentinel, Vector, Pilot, Memory, Watcher, Hackathon.
 
   Each of the 11 models has its own neural topology (buildConnections),
   node shape/rendering grammar (drawNodes), nucleus design (drawNucleus),
@@ -12,7 +11,7 @@
   a viewer can identify the active model from its geometry and motion
   before reading the label, not just from its colour.
 
-  Composition (measured from the supplied ui.zip references):
+  Composition:
     - S5 dominant and centered, 5 specialists in a fixed left column and
       5 in a fixed right column (never a circular orbit, never above/below
       S5), with a right-hand information sidebar that can open/minimize
@@ -25,12 +24,16 @@
     - temporary neural communication streams (never permanent connecting
       lines) for S5 <-> specialist delegation and result-return, plus
       direct specialist <-> specialist "peer" messages
-    - a scripted "run full demo" control that plays out an entire
+    - a scripted "run workflow" control that plays out an entire
       delegate -> work -> peer-communication -> complete -> acknowledge
       workflow end to end
     - the bottom-left mini brain always mirrors S5/LANUX itself (LANUX's
       persistent presence), reacting to delegation, warnings, completion,
       and voice activity regardless of which model is currently focused
+    - a dark/light theme system (data-theme attribute + CSS variables,
+      see THEME TOKENS below) with a persisted top-right toggle; the
+      canvas sphere renderer cross-fades between PALETTE_DARK and
+      PALETTE_LIGHT on the same schedule as the CSS transition
 
   Pure HTML + CSS + vanilla JS. No frameworks, no external assets, no
   external libraries. No microphone, no speech recognition, no TTS, no
@@ -45,8 +48,18 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>LANUX — Voice Interface Concept (v4)</title>
+<title>LANUX — Intelligence Interface</title>
 <style>
+  /* ==================================================================
+     THEME TOKENS
+     Dark (:root) is the default, unchanged LANUX identity. The light
+     override below uses ONLY the hex values from
+     theme/LANUX-Colour-Theme-Reference.pdf — the four locked accent
+     colours (--c1..--c4) are identical in both themes; only background,
+     surface, text and border values change. RGB-triplet variables
+     (--*-rgb) exist purely so existing rgba(...) glass/glow effects can
+     stay theme-aware without hand-converting every literal.
+  ================================================================== */
   :root{
     --c1:#ABBED3;
     --c2:#B0BFD1;
@@ -56,6 +69,62 @@
     --bg2:#0E1219;     /* secondary background */
     --surface:#131824; /* surface (panels) */
     --elevated:#1A2130;/* elevated surface (buttons, chips) */
+    --hover-surface:#1A2130;
+
+    /* semantic text roles — dark theme keeps the app's existing
+       accent-driven look (label text IS an accent tone, by design) */
+    --label-strong:var(--c4);
+    --label-muted:var(--c3);
+
+    /* rgb triplets for rgba() composition, dark defaults (unchanged
+       from the values already hard-coded through this stylesheet) */
+    --hair-rgb:207,222,234;        /* c4 — hairline borders, glows */
+    --glass-rgb:26,33,48;          /* elevated — panel/button fill */
+    --glass2-rgb:19,24,36;         /* surface — panel gradient stop */
+    --glass3-rgb:14,18,25;         /* bg2 — panel gradient stop */
+    --shadow-rgb:0,0,0;            /* panel drop shadow */
+    --shadow-a:0.22;
+    --warn-rgb:196,150,145;        /* warn-btn tint (muted --error) */
+    --mini-glow-rgb:171,190,211;   /* mini-brain drop-shadow */
+    --ambient-a-rgb:180,196,214;   /* body vignette — center highlight */
+    --ambient-b-rgb:11,14,20;      /* body vignette — mid (== bg) */
+    --ambient-c-rgb:6,7,11;        /* body vignette — corner darken */
+
+    --theme-transition:.6s cubic-bezier(.4,0,.2,1);
+
+    /* every `opacity:N` in this sheet is expressed as calc(N * --op-boost)
+       so low-emphasis text keeps the same quiet weight it already has
+       against the near-black dark background (boost = 1, i.e. unchanged) */
+    --op-boost:1;
+  }
+
+  [data-theme="light"]{
+    --bg:#F6F9FD;
+    --bg2:#EEF4FB;
+    --surface:#FFFFFF;
+    --elevated:#FFFFFF;
+    --hover-surface:#EEF4FB;
+
+    --label-strong:#12161F;
+    --label-muted:#5B6478;
+
+    --hair-rgb:226,233,243;        /* official light --border #E2E9F3 */
+    --glass-rgb:255,255,255;
+    --glass2-rgb:255,255,255;
+    --glass3-rgb:238,244,251;      /* official light --bg-alt #EEF4FB */
+    --shadow-rgb:16,24,40;         /* neutral ink shadow, not pure black */
+    --shadow-a:0.08;
+    --warn-rgb:184,108,94;         /* same warm hue, darkened for contrast */
+    --mini-glow-rgb:139,158,183;
+    --ambient-a-rgb:176,191,209;   /* official --primary #B0BFD1 */
+    --ambient-b-rgb:246,249,253;   /* == bg, so the vignette settles flat */
+    --ambient-c-rgb:214,224,238;   /* soft steel edge, no black smear */
+
+    /* same alpha blend reads far fainter on a light page than on the
+       near-black default, so light theme text opacity is scaled up —
+       tuned so primary copy (0.7-0.95) reaches solid readable contrast
+       while the quietest caption tier stays deliberately understated */
+    --op-boost:1.35;
   }
 
   *{ box-sizing:border-box; }
@@ -66,14 +135,28 @@
     overflow:hidden;
     font-family:-apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing:antialiased;
+    transition:background-color var(--theme-transition);
   }
 
-  body::before{
+  /* dark vignette (default) and light vignette cross-fade via opacity,
+     rather than trying to transition a gradient's colour stops directly */
+  body::before, body::after{
     content:"";
     position:fixed; inset:0; pointer-events:none; z-index:4;
+    transition:opacity var(--theme-transition);
+  }
+  body::before{
+    opacity:1;
     background:radial-gradient(ellipse at 50% 42%, rgba(180,196,214,0.05) 0%, rgba(11,14,20,0) 55%),
                radial-gradient(ellipse at 50% 50%, rgba(11,14,20,0) 0%, rgba(6,7,11,0.6) 100%);
   }
+  body::after{
+    opacity:0;
+    background:radial-gradient(ellipse at 50% 42%, rgba(176,191,209,0.07) 0%, rgba(246,249,253,0) 55%),
+               radial-gradient(ellipse at 50% 50%, rgba(246,249,253,0) 0%, rgba(214,224,238,0.4) 100%);
+  }
+  [data-theme="light"] body::before{ opacity:0; }
+  [data-theme="light"] body::after{ opacity:1; }
 
   #stage{ position:fixed; inset:0; }
 
@@ -101,11 +184,11 @@
     position:relative;
     top:10px;
     text-align:center;
-    color:var(--c3);
-    opacity:0.42;
+    color:var(--label-muted);
+    opacity:calc(0.42 * var(--op-boost));
     transform:translateY(0);
     transition:opacity .35s ease, color .35s ease, transform .35s ease;
-    text-shadow:0 0 10px rgba(207,222,234,0.18);
+    text-shadow:0 0 10px rgba(var(--hair-rgb),0.18);
   }
   .model-name-text{
     display:block;
@@ -115,8 +198,8 @@
   }
   /* names sit quietly beneath every sphere at all times; hover/focus just
      brings them forward rather than toggling visibility on/off */
-  .model-hit.show-label .model-label{ opacity:0.94; color:var(--c4); transform:translateY(-1px); text-shadow:0 0 14px rgba(207,222,234,0.4); }
-  .model-hit.is-main .model-label{ opacity:0.96; color:var(--c4); }
+  .model-hit.show-label .model-label{ opacity:calc(0.94 * var(--op-boost)); color:var(--label-strong); transform:translateY(-1px); text-shadow:0 0 14px rgba(var(--hair-rgb),0.4); }
+  .model-hit.is-main .model-label{ opacity:calc(0.96 * var(--op-boost)); color:var(--label-strong); }
   .model-hit.is-main .model-name-text{ font-size:12.5px; }
   /* the giant center sphere's identity is shown by the header above it and
      the status pill below it — its own under-sphere label/task would just
@@ -128,8 +211,8 @@
     display:block;
     font-size:7.5px;
     letter-spacing:0.09em;
-    color:var(--c3);
-    opacity:0.55;
+    color:var(--label-muted);
+    opacity:calc(0.55 * var(--op-boost));
     margin:3px auto 0;
     max-width:132px;
     line-height:1.3;
@@ -143,22 +226,22 @@
     transform:translateX(-50%);
     font-size:10px;
     letter-spacing:0.02em;
-    color:var(--c3);
-    background:rgba(19,24,36,0.55);
-    border:1px solid rgba(207,222,234,0.10);
+    color:var(--label-muted);
+    background:rgba(var(--glass2-rgb),0.55);
+    border:1px solid rgba(var(--hair-rgb),0.10);
     padding:4px 10px;
     border-radius:999px;
     white-space:nowrap;
-    opacity:0;
+    opacity:calc(0 * var(--op-boost));
     transition:opacity .3s ease;
     backdrop-filter:blur(6px);
   }
-  .model-task.show{ opacity:0.92; }
+  .model-task.show{ opacity:calc(0.92 * var(--op-boost)); }
   .model-task .status{
-    color:var(--c4);
+    color:var(--label-strong);
     letter-spacing:0.14em;
     margin-right:6px;
-    opacity:0.8;
+    opacity:calc(0.8 * var(--op-boost));
   }
 
   /* current-model header — positioned dynamically in JS just above the
@@ -171,26 +254,26 @@
     text-align:center; white-space:nowrap;
   }
   #topLabel .headerName{
-    display:block; color:var(--c4);
-    font-size:13px; letter-spacing:0.24em; opacity:0.92;
-    text-shadow:0 0 14px rgba(207,222,234,0.3);
+    display:block; color:var(--label-strong);
+    font-size:13px; letter-spacing:0.24em; opacity:calc(0.92 * var(--op-boost));
+    text-shadow:0 0 14px rgba(var(--hair-rgb),0.3);
   }
-  #topLabel .sub{ display:block; font-size:9px; letter-spacing:0.1em; color:var(--c3); opacity:0.6; margin-top:5px; }
+  #topLabel .sub{ display:block; font-size:9px; letter-spacing:0.1em; color:var(--label-muted); opacity:calc(0.6 * var(--op-boost)); margin-top:5px; }
 
   /* central status pill — positioned dynamically just below the sphere */
   #statusBar{
     position:fixed; left:50%; top:0;
     transform:translate(-50%,0);
     z-index:10; pointer-events:none;
-    background:rgba(26,33,48,0.42);
-    border:1px solid rgba(207,222,234,0.14);
+    background:rgba(var(--glass-rgb),0.42);
+    border:1px solid rgba(var(--hair-rgb),0.14);
     border-radius:999px;
     padding:6px 0;
     text-align:center;
     backdrop-filter:blur(8px);
   }
   #statusBar span{
-    font-size:9.5px; letter-spacing:0.28em; color:var(--c4); opacity:0.85;
+    font-size:9.5px; letter-spacing:0.28em; color:var(--label-strong); opacity:calc(0.85 * var(--op-boost));
   }
 
   /* ---------------- top-right sidebar toggle ---------------- */
@@ -199,17 +282,47 @@
     width:34px; height:34px;
     display:flex; align-items:center; justify-content:center;
     border-radius:50%;
-    border:1px solid rgba(207,222,234,0.16);
-    background:rgba(26,33,48,0.5);
-    color:var(--c4);
+    border:1px solid rgba(var(--hair-rgb),0.16);
+    background:rgba(var(--glass-rgb),0.5);
+    color:var(--label-strong);
     font-size:15px; line-height:1;
     cursor:pointer;
     backdrop-filter:blur(10px);
     transition:background .25s ease, border-color .25s ease, transform .3s ease;
   }
-  #sidebarToggle:hover{ background:rgba(207,222,234,0.10); border-color:rgba(207,222,234,0.4); }
+  #sidebarToggle:hover{ background:rgba(var(--hair-rgb),0.10); border-color:rgba(var(--hair-rgb),0.4); }
+  #sidebarToggle:focus-visible{ outline:2px solid var(--c1); outline-offset:3px; }
   #sidebarToggleIcon{ display:inline-block; transition:transform .35s ease; }
   #sidebarToggle.is-open #sidebarToggleIcon{ transform:rotate(180deg); }
+
+  /* ---------------- top-right theme toggle ----------------
+     A deliberately plain pill switch (no sun/moon glyphs, no browser-
+     native checkbox look) — the LANUX identity comes from the thumb
+     using the documented primary→primary-strong button gradient, the
+     same gradient the colour reference defines for real product
+     buttons, not from decoration. */
+  #themeToggle{
+    position:fixed; top:22px; right:66px; z-index:12;
+    width:46px; height:26px; box-sizing:border-box;
+    padding:3px;
+    border-radius:999px;
+    border:1px solid rgba(var(--hair-rgb),0.18);
+    background:rgba(var(--glass-rgb),0.55);
+    cursor:pointer;
+    appearance:none; -webkit-appearance:none;
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    transition:background .3s ease, border-color .3s ease;
+  }
+  #themeToggle:hover{ border-color:rgba(var(--hair-rgb),0.4); }
+  #themeToggle:focus-visible{ outline:2px solid var(--c1); outline-offset:3px; }
+  .theme-toggle-thumb{
+    display:block; width:18px; height:18px; border-radius:50%;
+    background:linear-gradient(180deg, var(--c2), var(--c1));
+    box-shadow:0 1px 4px rgba(var(--shadow-rgb),0.35);
+    transform:translateX(0);
+    transition:transform .5s cubic-bezier(.4,0,.2,1), background .5s ease;
+  }
+  #themeToggle[aria-checked="true"] .theme-toggle-thumb{ transform:translateX(20px); }
 
   /* ---------------- right information sidebar (two stacked panels) ---------------- */
   #sidebar{
@@ -217,50 +330,51 @@
     width:min(300px, 20vw);
     display:flex; flex-direction:column; gap:16px;
     z-index:9; pointer-events:none;
-    opacity:1; transform:translateX(0);
+    opacity:calc(1 * var(--op-boost)); transform:translateX(0);
     transition:opacity .4s ease, transform .45s cubic-bezier(.4,0,.2,1);
   }
   #sidebar.minimized{
-    opacity:0;
+    opacity:calc(0 * var(--op-boost));
     transform:translateX(24px);
     pointer-events:none;
   }
   .sidebar-panel{
-    background:linear-gradient(180deg, rgba(19,24,36,0.58), rgba(14,18,25,0.38));
-    border:1px solid rgba(207,222,234,0.09);
+    background:linear-gradient(180deg, rgba(var(--glass2-rgb),0.58), rgba(var(--glass3-rgb),0.38));
+    border:1px solid rgba(var(--hair-rgb),0.09);
     border-radius:16px;
     padding:12px 16px 14px;
     backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-    box-shadow:0 12px 40px rgba(0,0,0,0.22);
+    box-shadow:0 12px 40px rgba(var(--shadow-rgb),var(--shadow-a));
+    transition:background var(--theme-transition), border-color var(--theme-transition), box-shadow var(--theme-transition);
     overflow:hidden;
   }
   #feedPanel{ min-height:80px; }
   #workHistoryPanel{ flex:1; min-height:0; display:flex; flex-direction:column; }
   .panel-caption{
-    font-size:8px; letter-spacing:0.28em; color:var(--c3); opacity:0.42;
+    font-size:8px; letter-spacing:0.28em; color:var(--label-muted); opacity:calc(0.42 * var(--op-boost));
     margin-bottom:8px; flex:none;
   }
-  .panel-caption-sub{ margin-top:12px; opacity:0.32; }
+  .panel-caption-sub{ margin-top:12px; opacity:calc(0.32 * var(--op-boost)); }
   #feedBody{ min-height:34px; }
-  .feed-msg{ font-size:11px; line-height:1.45; opacity:0; transition:opacity .45s ease; }
-  .feed-msg.visible{ opacity:1; }
-  .feed-speaker{ display:block; color:var(--c4); letter-spacing:0.06em; font-weight:600; opacity:0.92; margin-bottom:2px; }
-  .feed-text{ color:var(--c3); opacity:0.82; }
+  .feed-msg{ font-size:11px; line-height:1.45; opacity:calc(0 * var(--op-boost)); transition:opacity .45s ease; }
+  .feed-msg.visible{ opacity:calc(1 * var(--op-boost)); }
+  .feed-speaker{ display:block; color:var(--label-strong); letter-spacing:0.06em; font-weight:600; opacity:calc(0.92 * var(--op-boost)); margin-bottom:2px; }
+  .feed-text{ color:var(--label-muted); opacity:calc(0.82 * var(--op-boost)); }
   #workBody{ flex:none; max-height:40%; overflow:hidden; }
   #historyBody{ flex:1; overflow:hidden; }
-  @keyframes rowIn{ from{ opacity:0; transform:translateY(4px); } to{ opacity:1; transform:translateY(0); } }
-  .work-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid rgba(207,222,234,0.06); animation:rowIn .4s ease; }
+  @keyframes rowIn{ from{ opacity:calc(0 * var(--op-boost)); transform:translateY(4px); } to{ opacity:calc(1 * var(--op-boost)); transform:translateY(0); } }
+  .work-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid rgba(var(--hair-rgb),0.06); animation:rowIn .4s ease; }
   .work-row:last-child{ border-bottom:none; }
   .work-main{ min-width:0; }
-  .work-model{ font-size:10px; letter-spacing:0.1em; color:var(--c4); opacity:0.92; }
-  .work-task{ display:block; font-size:9.5px; color:var(--c3); opacity:0.7; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:160px; }
-  .work-status{ flex:none; font-size:8px; letter-spacing:0.14em; padding:2px 8px; border-radius:999px; border:1px solid rgba(207,222,234,0.16); white-space:nowrap; opacity:0.85; }
-  .work-status.working{ color:var(--c4); border-color:rgba(207,222,234,0.32); }
-  .work-status.waiting{ color:var(--c3); opacity:0.55; }
-  .work-status.complete{ color:var(--c3); opacity:0.4; border-color:rgba(207,222,234,0.08); }
-  .work-empty{ font-size:10px; color:var(--c3); opacity:0.35; }
-  .work-more{ font-size:9px; color:var(--c3); opacity:0.4; padding:5px 0 0; }
-  .work-section-label{ font-size:7.5px; letter-spacing:0.22em; color:var(--c3); opacity:0.32; margin:10px 0 4px; }
+  .work-model{ font-size:10px; letter-spacing:0.1em; color:var(--label-strong); opacity:calc(0.92 * var(--op-boost)); }
+  .work-task{ display:block; font-size:9.5px; color:var(--label-muted); opacity:calc(0.7 * var(--op-boost)); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:160px; }
+  .work-status{ flex:none; font-size:8px; letter-spacing:0.14em; padding:2px 8px; border-radius:999px; border:1px solid rgba(var(--hair-rgb),0.16); white-space:nowrap; opacity:calc(0.85 * var(--op-boost)); }
+  .work-status.working{ color:var(--label-strong); border-color:rgba(var(--hair-rgb),0.32); }
+  .work-status.waiting{ color:var(--label-muted); opacity:calc(0.55 * var(--op-boost)); }
+  .work-status.complete{ color:var(--label-muted); opacity:calc(0.4 * var(--op-boost)); border-color:rgba(var(--hair-rgb),0.08); }
+  .work-empty{ font-size:10px; color:var(--label-muted); opacity:calc(0.35 * var(--op-boost)); }
+  .work-more{ font-size:9px; color:var(--label-muted); opacity:calc(0.4 * var(--op-boost)); padding:5px 0 0; }
+  .work-section-label{ font-size:7.5px; letter-spacing:0.22em; color:var(--label-muted); opacity:calc(0.32 * var(--op-boost)); margin:10px 0 4px; }
 
   #controls{
     position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
@@ -271,18 +385,18 @@
     display:flex; flex-wrap:wrap; justify-content:center; gap:6px;
   }
   .row-caption{
-    font-size:8px; letter-spacing:0.26em; color:var(--c3); opacity:0.36;
+    font-size:8px; letter-spacing:0.26em; color:var(--label-muted); opacity:calc(0.36 * var(--op-boost));
     margin-bottom:-2px;
   }
   #controls .divider{
-    width:1px; align-self:stretch; background:rgba(207,222,234,0.12); margin:2px 4px;
+    width:1px; align-self:stretch; background:rgba(var(--hair-rgb),0.12); margin:2px 4px;
   }
 
   button.lx-btn{
     appearance:none;
-    border:1px solid rgba(207,222,234,0.13);
-    background:rgba(26,33,48,0.45);
-    color:var(--c4);
+    border:1px solid rgba(var(--hair-rgb),0.13);
+    background:rgba(var(--glass-rgb),0.45);
+    color:var(--label-strong);
     font-size:10px;
     letter-spacing:0.06em;
     padding:6px 11px;
@@ -291,37 +405,38 @@
     backdrop-filter:blur(8px);
     -webkit-backdrop-filter:blur(8px);
     transition:background .25s ease, border-color .25s ease, transform .15s ease, opacity .25s ease;
-    opacity:0.68;
+    opacity:calc(0.68 * var(--op-boost));
   }
-  button.lx-btn:hover{ opacity:1; background:rgba(207,222,234,0.09); border-color:rgba(207,222,234,0.32); }
+  button.lx-btn:hover{ opacity:calc(1 * var(--op-boost)); background:rgba(var(--hair-rgb),0.09); border-color:rgba(var(--hair-rgb),0.32); }
+  button.lx-btn:disabled{ cursor:not-allowed; pointer-events:none; }
   button.lx-btn:active{ transform:scale(0.94); }
-  button.lx-btn.state-btn.is-active{ opacity:1; background:rgba(207,222,234,0.14); border-color:rgba(207,222,234,0.45); }
-  button.lx-btn.warn-btn{ border-color:rgba(196,150,145,0.22); }
-  button.lx-btn.warn-btn:hover{ background:rgba(196,150,145,0.12); border-color:rgba(196,150,145,0.4); }
+  button.lx-btn.state-btn.is-active{ opacity:calc(1 * var(--op-boost)); background:rgba(var(--hair-rgb),0.14); border-color:rgba(var(--hair-rgb),0.45); }
+  button.lx-btn.warn-btn{ border-color:rgba(var(--warn-rgb),0.22); }
+  button.lx-btn.warn-btn:hover{ background:rgba(var(--warn-rgb),0.12); border-color:rgba(var(--warn-rgb),0.4); }
   button.lx-btn.deleg-btn{ font-size:9px; }
   button.lx-btn.demo-btn{
     font-size:10px; letter-spacing:0.12em;
-    border-color:rgba(207,222,234,0.28);
-    background:rgba(207,222,234,0.07);
-    opacity:0.88;
+    border-color:rgba(var(--hair-rgb),0.28);
+    background:rgba(var(--hair-rgb),0.07);
+    opacity:calc(0.88 * var(--op-boost));
   }
-  button.lx-btn.demo-btn:hover{ background:rgba(207,222,234,0.14); border-color:rgba(207,222,234,0.5); }
-  button.lx-btn.sound-btn.is-on{ opacity:1; background:rgba(207,222,234,0.12); border-color:rgba(207,222,234,0.4); }
+  button.lx-btn.demo-btn:hover{ background:rgba(var(--hair-rgb),0.14); border-color:rgba(var(--hair-rgb),0.5); }
+  button.lx-btn.sound-btn.is-on{ opacity:calc(1 * var(--op-boost)); background:rgba(var(--hair-rgb),0.12); border-color:rgba(var(--hair-rgb),0.4); }
 
   .mini-ring{
     position:fixed; left:22px; bottom:22px; width:56px; height:56px;
-    border-radius:50%; border:1px solid rgba(207,222,234,0.08);
+    border-radius:50%; border:1px solid rgba(var(--hair-rgb),0.08);
     pointer-events:none; z-index:6;
   }
   canvas#mini{
     position:fixed; left:22px; bottom:22px; width:56px; height:56px;
     display:block; pointer-events:none;
-    filter:drop-shadow(0 0 10px rgba(171,190,211,0.18));
+    filter:drop-shadow(0 0 10px rgba(var(--mini-glow-rgb),0.18));
     z-index:6;
   }
   #miniLabel{
     position:fixed; left:22px; bottom:82px;
-    font-size:8.5px; letter-spacing:0.2em; color:var(--c3); opacity:0.45;
+    font-size:8.5px; letter-spacing:0.2em; color:var(--label-muted); opacity:calc(0.45 * var(--op-boost));
     z-index:6; pointer-events:none;
   }
 
@@ -329,7 +444,7 @@
     #sidebar{ width:220px; }
   }
   @media (max-width:820px){
-    #sidebar, #sidebarToggle{ display:none; }
+    #sidebar, #sidebarToggle, #themeToggle{ display:none; }
   }
   @media (max-width:760px){
     button.lx-btn{ padding:6px 9px; font-size:9px; }
@@ -341,6 +456,10 @@
 
 <div id="topLabel"><span class="headerName" id="headerName">LANUX S5</span><span class="sub" id="headerPurpose">Commander / Master Orchestrator</span></div>
 <div id="statusBar"><span id="statusText">IDLE</span></div>
+
+<button id="themeToggle" type="button" role="switch" aria-checked="false" aria-label="Switch to light theme">
+  <span class="theme-toggle-thumb"></span>
+</button>
 
 <button id="sidebarToggle" aria-label="Toggle information sidebar">
   <span id="sidebarToggleIcon">›</span>
@@ -398,7 +517,7 @@
     <div class="divider"></div>
     <button class="lx-btn deleg-btn" data-deleg="all">→ ALL</button>
     <div class="divider"></div>
-    <button class="lx-btn demo-btn" id="demoBtn">▶ RUN FULL DEMO</button>
+    <button class="lx-btn demo-btn" id="demoBtn">▶ RUN WORKFLOW</button>
   </div>
 </div>
 
@@ -410,14 +529,39 @@
   /* =================================================================
      PALETTE & MATH HELPERS
   ================================================================= */
-  const PALETTE = {
+  // Dark identity — exactly the values this file has always used.
+  const PALETTE_DARK = {
     c1:{r:0xAB,g:0xBE,b:0xD3},
     c2:{r:0xB0,g:0xBF,b:0xD1},
     c3:{r:0xB9,g:0xC3,b:0xD0},
     c4:{r:0xCF,g:0xDE,b:0xEA},
   };
+  // Light identity — same blue-grey hue family (~215°), same relative
+  // ordering (c4 the strongest/most-detailed tone, c1 the softest), just
+  // re-valued dark-on-light instead of light-on-dark so contrast against
+  // the official #F6F9FD page background is preserved rather than lost.
+  // Not a hue shift, not an invert — the same restrained mist/blue-grey
+  // identity, mirrored the same way the official light --text (#12161F)
+  // and --text-muted (#5B6478) mirror the dark theme's pale tokens.
+  const PALETTE_LIGHT = {
+    c1:{r:0x81,g:0x91,b:0xA7},
+    c2:{r:0x5E,g:0x71,b:0x8D},
+    c3:{r:0x44,g:0x54,b:0x6A},
+    c4:{r:0x2C,g:0x36,b:0x44},
+  };
+  // The live palette every draw call reads from. Its four properties are
+  // overwritten in place every frame (see updateThemeMix), so none of the
+  // ~20 existing PALETTE.c1..c4 call sites in the renderer need to change.
+  const PALETTE = {
+    c1:{r:PALETTE_DARK.c1.r,g:PALETTE_DARK.c1.g,b:PALETTE_DARK.c1.b},
+    c2:{r:PALETTE_DARK.c2.r,g:PALETTE_DARK.c2.g,b:PALETTE_DARK.c2.b},
+    c3:{r:PALETTE_DARK.c3.r,g:PALETTE_DARK.c3.g,b:PALETTE_DARK.c3.b},
+    c4:{r:PALETTE_DARK.c4.r,g:PALETTE_DARK.c4.g,b:PALETTE_DARK.c4.b},
+  };
   // official LANUX --error token (#E4685D), blended in at low weight during
-  // WARNING so it reads as "requires attention" rather than an alarm colour
+  // WARNING so it reads as "requires attention" rather than an alarm
+  // colour — identical in both themes, exactly as the colour reference
+  // specifies ("Error ... same value as dark theme").
   const WARN_TINT = {r:0xE4,g:0x68,b:0x5D};
   // FORGE-only: a small vocabulary of code-like glyphs. Nodes occasionally
   // render as one of these instead of a plain dot — meant to read as
@@ -428,6 +572,28 @@
   function lerp(a,b,t){ return a+(b-a)*t; }
   function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
   function mixColor(c1,c2,t){ return {r:lerp(c1.r,c2.r,t), g:lerp(c1.g,c2.g,t), b:lerp(c1.b,c2.b,t)}; }
+  function mixColorInto(target,c1,c2,t){ target.r=lerp(c1.r,c2.r,t); target.g=lerp(c1.g,c2.g,t); target.b=lerp(c1.b,c2.b,t); }
+
+  // 0 = fully dark palette, 1 = fully light palette. Eased toward
+  // themeMixTarget every frame in updateThemeMix() so the sphere system
+  // cross-fades in step with the CSS theme transition, rather than
+  // snapping colour the instant the toggle is clicked.
+  let themeMix = 0;
+  let themeMixTarget = 0;
+  let themeMixSettled = true; // true once themeMix has reached its target — skips redundant work
+  function updateThemeMix(){
+    if (themeMixSettled) return;
+    if (Math.abs(themeMix - themeMixTarget) < 0.001){
+      themeMix = themeMixTarget;
+      themeMixSettled = true;
+    } else {
+      themeMix = lerp(themeMix, themeMixTarget, 0.08);
+    }
+    mixColorInto(PALETTE.c1, PALETTE_DARK.c1, PALETTE_LIGHT.c1, themeMix);
+    mixColorInto(PALETTE.c2, PALETTE_DARK.c2, PALETTE_LIGHT.c2, themeMix);
+    mixColorInto(PALETTE.c3, PALETTE_DARK.c3, PALETTE_LIGHT.c3, themeMix);
+    mixColorInto(PALETTE.c4, PALETTE_DARK.c4, PALETTE_LIGHT.c4, themeMix);
+  }
 
   // Originkit "Particle Surge"-style envelope: exponential decay times a
   // cosine, so an event fires outward, overshoots, rings back and settles
@@ -2111,6 +2277,7 @@
   }
 
   function frame(){
+    updateThemeMix();
     updateEntities();
     computeLayout();
 
@@ -2260,6 +2427,54 @@
     if (next) AudioEngine.pulse({freq:520, dur:0.07, type:"sine", vol:0.4});
   });
   syncSoundBtn();
+
+  /* =================================================================
+     THEME (dark/light)
+  ================================================================= */
+  const themeToggleEl = document.getElementById("themeToggle");
+  const docEl = document.documentElement;
+  const THEME_KEY = "lanuxTheme";
+
+  function getStoredTheme(){
+    try { return localStorage.getItem(THEME_KEY); } catch(e){ return null; }
+  }
+  function storeTheme(name){
+    try { localStorage.setItem(THEME_KEY, name); } catch(e){ /* storage unavailable — theme still applies for this session */ }
+  }
+
+  // Dark is the default whenever there is no saved preference — the
+  // colour reference names it "the primary, default experience", and a
+  // returning visitor's own choice always wins over that default.
+  function applyTheme(name, opts){
+    const isLight = name === "light";
+    docEl.setAttribute("data-theme", isLight ? "light" : "dark");
+
+    themeToggleEl.setAttribute("aria-checked", isLight ? "true" : "false");
+    themeToggleEl.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
+
+    themeMixTarget = isLight ? 1 : 0;
+    themeMixSettled = false; // resume the per-frame cross-fade toward the new target
+
+    if (!opts || !opts.silent) storeTheme(isLight ? "light" : "dark");
+  }
+
+  themeToggleEl.addEventListener("click", function(){
+    const isLight = docEl.getAttribute("data-theme") === "light";
+    applyTheme(isLight ? "dark" : "light");
+    if (AudioEngine.isEnabled()) AudioEngine.pulse({freq:isLight?460:600, dur:0.05, type:"sine", vol:0.22});
+  });
+
+  // Initial load: saved preference, else the dark default. Applied with
+  // {silent:true} so restoring the user's own stored choice never
+  // rewrites localStorage, and with themeMix set immediately (not eased)
+  // so the very first frame renders in the correct theme, not mid-fade.
+  (function initTheme(){
+    const stored = getStoredTheme();
+    const theme = stored === "light" ? "light" : "dark";
+    applyTheme(theme, {silent:true});
+    themeMix = themeMixTarget;
+    themeMixSettled = true;
+  })();
 
   /* =================================================================
      SIDEBAR TOGGLE (top-right)
