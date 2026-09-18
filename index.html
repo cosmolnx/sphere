@@ -49,6 +49,18 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>LANUX — Intelligence Interface</title>
+<script>
+  // Runs synchronously, before CSS paints, so a returning visitor's saved
+  // theme is already on <html> for the very first frame — no dark-then-light
+  // (or light-then-dark) flash. Kept deliberately tiny and dependency-free.
+  (function(){
+    try {
+      if (localStorage.getItem("lanuxTheme") === "light") {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    } catch(e){ /* storage unavailable — falls through to the dark default */ }
+  })();
+</script>
 <style>
   /* ==================================================================
      THEME TOKENS
@@ -90,7 +102,7 @@
     --ambient-b-rgb:11,14,20;      /* body vignette — mid (== bg) */
     --ambient-c-rgb:6,7,11;        /* body vignette — corner darken */
 
-    --theme-transition:.6s cubic-bezier(.4,0,.2,1);
+    --theme-transition:.4s cubic-bezier(.4,0,.2,1);
 
     /* every `opacity:N` in this sheet is expressed as calc(N * --op-boost)
        so low-emphasis text keeps the same quiet weight it already has
@@ -267,10 +279,11 @@
     z-index:10; pointer-events:none;
     background:rgba(var(--glass-rgb),0.42);
     border:1px solid rgba(var(--hair-rgb),0.14);
-    border-radius:999px;
+    border-radius:6px;
     padding:6px 0;
     text-align:center;
     backdrop-filter:blur(8px);
+    transition:background var(--theme-transition), border-color var(--theme-transition);
   }
   #statusBar span{
     font-size:9.5px; letter-spacing:0.28em; color:var(--label-strong); opacity:calc(0.85 * var(--op-boost));
@@ -400,7 +413,7 @@
     font-size:10px;
     letter-spacing:0.06em;
     padding:6px 11px;
-    border-radius:999px;
+    border-radius:5px;
     cursor:pointer;
     backdrop-filter:blur(8px);
     -webkit-backdrop-filter:blur(8px);
@@ -449,6 +462,16 @@
   @media (max-width:760px){
     button.lx-btn{ padding:6px 9px; font-size:9px; }
     .model-task{ font-size:9px; padding:3px 8px; }
+  }
+  /* Anyone with the OS-level "reduce motion" preference gets an instant
+     theme swap instead of a cross-fade — this only touches CSS-driven
+     transitions/animations; it does not touch the canvas renderer, which
+     is math-driven and part of the LANUX identity, not decoration. */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      transition-duration:0.001ms !important;
+      animation-duration:0.001ms !important;
+    }
   }
 </style>
 </head>
@@ -2442,6 +2465,17 @@
     try { localStorage.setItem(THEME_KEY, name); } catch(e){ /* storage unavailable — theme still applies for this session */ }
   }
 
+  let prefersReducedMotion = false;
+  try {
+    const rmQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    prefersReducedMotion = rmQuery.matches;
+    // Safari <14 lacks addEventListener on MediaQueryList; addListener is
+    // the deprecated-but-still-supported fallback, both guarded.
+    const onRmChange = function(e){ prefersReducedMotion = e.matches; };
+    if (rmQuery.addEventListener) rmQuery.addEventListener("change", onRmChange);
+    else if (rmQuery.addListener) rmQuery.addListener(onRmChange);
+  } catch(e){ /* matchMedia unavailable — default to full motion */ }
+
   // Dark is the default whenever there is no saved preference — the
   // colour reference names it "the primary, default experience", and a
   // returning visitor's own choice always wins over that default.
@@ -2453,7 +2487,14 @@
     themeToggleEl.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
 
     themeMixTarget = isLight ? 1 : 0;
-    themeMixSettled = false; // resume the per-frame cross-fade toward the new target
+    if (prefersReducedMotion){
+      // honour the OS preference: the sphere palette snaps instead of
+      // cross-fading over time, matching the instant CSS swap above
+      themeMix = themeMixTarget;
+      themeMixSettled = true;
+    } else {
+      themeMixSettled = false; // resume the per-frame cross-fade toward the new target
+    }
 
     if (!opts || !opts.silent) storeTheme(isLight ? "light" : "dark");
   }
