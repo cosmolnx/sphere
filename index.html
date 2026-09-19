@@ -1096,6 +1096,300 @@
   }
 
   /* =================================================================
+     S5 ARTIFICIAL BRAIN — a persistent internal structure unique to
+     S5 (the Commander). Built once and reused every frame; only its
+     ACTIVITY changes over time, never its geometry. This is what
+     makes S5 read as "the brain that coordinates the specialists"
+     rather than "a bigger version of the same particle sphere" —
+     the other 10 models are untouched by any of this.
+
+     Anatomy (all in local unit-sphere space, radius 0..~0.62 of the
+     sphere's own radius — well inside the existing outer particle
+     shell/rings, which continue to serve, unmodified, as S5's outer
+     association network):
+       - a small dense CORE cluster near the centre (the decision
+         region)
+       - five asymmetric INNER REGIONS ("lobes") fanned unevenly
+         around it, each with its own node count (different neuron
+         densities) and its own local branching, not a uniform shell
+       - trunk edges (core -> region hub), intra-region edges (dense,
+         local), and a handful of sparse inter-region edges (cross-
+         talk) — three distinct kinds of connective tissue, echoing
+         "layered/branching pathways" rather than one flat mesh
+     Every node also carries a fixed per-node seed so idle motion can
+     be a persistent, coherent "breathing" rather than noise.
+  ================================================================= */
+  function buildS5Brain(){
+    const nodes = [];   // {x,y,z (direction * radius fraction), seed1, seed2, region}  region:-1 = core
+    const edges = [];   // {a,b, region}  region:-1 core/trunk, -2 inter-region, else region index
+
+    const CORE_N = 9;
+    for (let i=0;i<CORE_N;i++){
+      const yv = 1 - (i/(CORE_N-1))*2;
+      const rAtY = Math.sqrt(Math.max(0,1-yv*yv));
+      const theta = i*2.399963; // golden-angle-ish scatter, not a neat ring
+      const rad = 0.12 + Math.random()*0.07;
+      nodes.push({ x:Math.cos(theta)*rAtY*rad, y:yv*rad, z:Math.sin(theta)*rAtY*rad,
+        seed1:Math.random()*Math.PI*2, seed2:0.7+Math.random()*0.6, region:-1, core:true });
+    }
+    for (let i=0;i<CORE_N;i++){
+      edges.push({ a:i, b:(i+1)%CORE_N, region:-1 });
+      if (i%2===0) edges.push({ a:i, b:(i+4)%CORE_N, region:-1 });
+    }
+
+    // five asymmetric directions — hand-placed, not evenly distributed,
+    // so the brain has a "this side is denser" character
+    const REGION_DIRS = [
+      {x:0.86, y:0.26, z:0.14},
+      {x:-0.68, y:0.42, z:0.38},
+      {x:0.12, y:-0.82, z:0.28},
+      {x:-0.52, y:-0.50, z:-0.48},
+      {x:0.40, y:0.22, z:-0.82},
+    ];
+    const REGION_COUNTS = [11, 7, 9, 6, 8]; // deliberately uneven density
+    const regions = [];
+    REGION_DIRS.forEach(function(dir, ri){
+      const len = Math.sqrt(dir.x*dir.x+dir.y*dir.y+dir.z*dir.z) || 1;
+      const ux=dir.x/len, uy=dir.y/len, uz=dir.z/len;
+      const startIdx = nodes.length;
+      const count = REGION_COUNTS[ri];
+      // hub: the region's innermost node — the trunk attaches here
+      nodes.push({ x:ux*0.30, y:uy*0.30, z:uz*0.30,
+        seed1:Math.random()*Math.PI*2, seed2:0.7+Math.random()*0.6, region:ri, hub:true });
+      for (let k=1;k<count;k++){
+        const spread = 0.36;
+        const rad = 0.38 + (k/count)*0.26 + Math.random()*0.08;
+        const jx = ux + (Math.random()-0.5)*spread;
+        const jy = uy + (Math.random()-0.5)*spread;
+        const jz = uz + (Math.random()-0.5)*spread;
+        const jlen = Math.sqrt(jx*jx+jy*jy+jz*jz) || 1;
+        nodes.push({ x:(jx/jlen)*rad, y:(jy/jlen)*rad, z:(jz/jlen)*rad,
+          seed1:Math.random()*Math.PI*2, seed2:0.7+Math.random()*0.6, region:ri });
+      }
+      const endIdx = nodes.length;
+      regions.push({ dir:{x:ux,y:uy,z:uz}, hub:startIdx, start:startIdx, end:endIdx, outer:endIdx-1 });
+
+      // trunk: one core node to this region's hub
+      edges.push({ a: ri % CORE_N, b:startIdx, region:ri, trunk:true });
+
+      // intra-region: a loose chain plus a few extra local links
+      for (let k=startIdx; k<endIdx-1; k++) edges.push({ a:k, b:k+1, region:ri });
+      const extra = Math.round(count*0.4);
+      for (let k=0;k<extra;k++){
+        const a = startIdx + Math.floor(Math.random()*count);
+        const b = startIdx + Math.floor(Math.random()*count);
+        if (a!==b) edges.push({ a:a, b:b, region:ri });
+      }
+    });
+
+    // sparse asymmetric cross-region links — regions talk to each
+    // other directly sometimes, not only back through the core
+    for (let k=0;k<6;k++){
+      const ra = Math.floor(Math.random()*regions.length);
+      let rb = Math.floor(Math.random()*regions.length);
+      if (rb===ra) rb = (rb+1)%regions.length;
+      const a = regions[ra].start + Math.floor(Math.random()*(regions[ra].end-regions[ra].start));
+      const b = regions[rb].start + Math.floor(Math.random()*(regions[rb].end-regions[rb].start));
+      edges.push({ a:a, b:b, region:-2 });
+    }
+
+    return { nodes:nodes, edges:edges, regions:regions, coreCount:CORE_N };
+  }
+
+  /* ---- brain activity: picking a region, firing pulse chains ---- */
+  function pickBrainRegion(entity, otherId){
+    const regions = entity.brain.regions;
+    const other = entities[otherId];
+    if (!other) return Math.floor(Math.random()*regions.length);
+    const dx = other.cur.x - entity.cur.x;
+    const candidates = [];
+    regions.forEach(function(r,i){ if ((r.dir.x>0)===(dx>=0)) candidates.push(i); });
+    const pool = candidates.length ? candidates : regions.map(function(_,i){return i;});
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+
+  // fires a short chain of pulses walking outward (dir=1, core->rim) or
+  // inward (dir=-1, rim->core) through one region, staggered so activity
+  // visibly travels rather than flashing everywhere at once
+  function fireBrainChain(entity, regionIdx, dir, opts){
+    opts = opts || {};
+    const brain = entity.brain;
+    const region = brain.regions[regionIdx];
+    if (!region) return;
+    const now = performance.now();
+    const path = [];
+    // trunk edge (core <-> hub)
+    const trunkEdge = brain.edges.find(function(e){ return e.trunk && e.region===regionIdx; });
+    if (trunkEdge) path.push(trunkEdge);
+    // walk the intra-region chain from hub toward the outer node
+    for (let i=region.start; i<region.outer; i++) path.push({ a:i, b:i+1, region:regionIdx });
+    const seq = dir === -1 ? path.slice().reverse() : path;
+    const stagger = opts.stagger || 90;
+    const hop = opts.hopDuration || 260;
+    seq.forEach(function(edge, i){
+      entity.brainPulses.push({
+        a: dir===-1 ? edge.b : edge.a, b: dir===-1 ? edge.a : edge.b,
+        start: now + i*stagger, duration: hop, region: regionIdx, strong: !!opts.strong
+      });
+    });
+    if (dir === 1) entity.brainCoreFlash = Math.max(entity.brainCoreFlash||0, 1);
+    else entity.brainCoreFlashDelayed = now + seq.length*stagger; // flash arrives once the chain reaches the core
+  }
+
+  function fireBrainInternalBurst(entity, count){
+    const brain = entity.brain;
+    const now = performance.now();
+    for (let i=0;i<count;i++){
+      const e = brain.edges[Math.floor(Math.random()*brain.edges.length)];
+      entity.brainPulses.push({ a:e.a, b:e.b, start: now + Math.random()*500, duration: 220+Math.random()*160, region:e.region });
+    }
+  }
+
+  // authoritative once-per-frame update: scheduling only, no drawing.
+  // Called once from updateEntities() regardless of how many times S5
+  // gets rendered this frame (main sphere + mini mirror both read the
+  // same settled state).
+  function updateS5Brain(entity, now){
+    const brain = entity.brain;
+    if (!brain) return;
+
+    // prune expired pulses
+    for (let i=entity.brainPulses.length-1;i>=0;i--){
+      if (now - entity.brainPulses[i].start > entity.brainPulses[i].duration) entity.brainPulses.splice(i,1);
+    }
+    if (entity.brainCoreFlash) entity.brainCoreFlash = Math.max(0, entity.brainCoreFlash - 0.045);
+    if (entity.brainCoreFlashDelayed && now >= entity.brainCoreFlashDelayed){
+      entity.brainCoreFlash = 1;
+      entity.brainCoreFlashDelayed = 0;
+    }
+
+    // react to state changes — each of these fires at most once per
+    // underlying event, via reference-equality against the entity's
+    // own effect object (triggerWordOn always creates a fresh one)
+    if (entity.effect && entity.effect !== entity._brainFiredFor){
+      entity._brainFiredFor = entity.effect;
+      const name = entity.effect.name;
+      if (name === "decision"){
+        const targets = entity.brainDelegateTargets && entity.brainDelegateTargets.length
+          ? entity.brainDelegateTargets : [null];
+        targets.forEach(function(id){
+          fireBrainChain(entity, pickBrainRegion(entity, id), 1, { strong:true });
+        });
+      } else if (name === "ack"){
+        fireBrainChain(entity, pickBrainRegion(entity, entity.brainReturnFrom), -1, { strong:true, hopDuration:220, stagger:75 });
+      } else if (name === "think"){
+        fireBrainInternalBurst(entity, 7);
+      } else if (name === "warning"){
+        entity.brainAlertRegion = pickBrainRegion(entity, entity.brainReturnFrom || entity.brainDelegateTargets && entity.brainDelegateTargets[0]);
+        entity.brainAlertUntil = now + (entity.tintDuration || 2600);
+      }
+    }
+
+    // continuous low-level activity, rate depends on current state
+    let idleGap = 1900;
+    if (entity.mode === "listen") idleGap = 1200;
+    if (entity.effect && entity.effect.name === "think") idleGap = 260;
+    if (now > entity.brainNextIdleAt){
+      entity.brainNextIdleAt = now + idleGap*(0.7+Math.random()*0.7);
+      fireBrainInternalBurst(entity, entity.effect && entity.effect.name==="think" ? 2 : 1);
+    }
+
+    if (entity.brainAlertUntil && now > entity.brainAlertUntil){
+      entity.brainAlertRegion = null;
+      entity.brainAlertUntil = 0;
+    }
+  }
+
+  // pure render: projects the persistent geometry through the SAME
+  // rotation already computed for S5's outer shell this frame (the
+  // brain turns with the body it's inside), draws connective tissue
+  // then nodes then any in-flight pulses. Safe to call more than once
+  // per frame (main sphere + mini mirror) — it never mutates state.
+  function renderS5Brain(ctx, cx, cy, sphereR, entity, cosY, sinY, cosX, sinX, c1, c3, c4, t, now, amp, opts){
+    const brain = entity.brain;
+    const lineScale = opts.lineScale || 1;
+    const particleScale = opts.particleScale || 1;
+    const alert = entity.brainAlertRegion;
+    const alertStrength = entity.brainAlertUntil ? clamp((entity.brainAlertUntil-now)/2600, 0, 1) : 0;
+
+    function project(node){
+      const wobble = 1 + 0.045*Math.sin(t*(0.5+node.seed2*0.4)+node.seed1)*(0.4+amp*0.8);
+      const x = node.x*wobble, y = node.y*wobble, z = node.z*wobble;
+      const rx = x*cosY - z*sinY, rz = x*sinY + z*cosY;
+      const ry = y*cosX - rz*sinX, rz2 = y*sinX + rz*cosX;
+      return { sx:cx+rx*sphereR, sy:cy+ry*sphereR*0.98, depth:(rz2+1)/2 };
+    }
+    const proj = brain.nodes.map(project);
+
+    function edgeColor(edgeRegion, baseA){
+      if (alert!=null && edgeRegion===alert) return rgba(mixColor(c4, WARN_TINT, 0.55*alertStrength), baseA*(1+alertStrength*0.6));
+      return rgba(edgeRegion===-1 ? c4 : c3, baseA);
+    }
+
+    // connective tissue
+    ctx.lineWidth = Math.max(0.5, lineScale*0.7);
+    for (let i=0;i<brain.edges.length;i++){
+      const e = brain.edges[i];
+      const A = proj[e.a], B = proj[e.b];
+      if (!A || !B) continue;
+      const avgDepth = (A.depth+B.depth)/2;
+      let a = (e.region===-1 ? 0.16 : e.trunk ? 0.14 : 0.09) + avgDepth*0.14;
+      a *= (0.6+amp*0.7);
+      ctx.beginPath();
+      ctx.moveTo(A.sx,A.sy); ctx.lineTo(B.sx,B.sy);
+      ctx.strokeStyle = edgeColor(e.region, clamp(a,0,0.5));
+      ctx.stroke();
+    }
+
+    // nodes, back-to-front by depth (same convention as drawNodes)
+    const order = proj.map(function(p,i){ return i; }).sort(function(i,j){ return proj[i].depth-proj[j].depth; });
+    for (let oi=0; oi<order.length; oi++){
+      const i = order[oi];
+      const node = brain.nodes[i]; const p = proj[i];
+      const isAlert = alert!=null && node.region===alert;
+      const baseR = (node.core ? 2.0 : node.hub ? 1.7 : 1.25) * particleScale;
+      const r = baseR * (0.6+p.depth*0.8);
+      const baseA = (node.core ? 0.55 : node.hub ? 0.42 : 0.30) + p.depth*0.25;
+      ctx.beginPath();
+      ctx.fillStyle = isAlert
+        ? rgba(mixColor(c4, WARN_TINT, 0.6*alertStrength), clamp(baseA*1.2,0,1))
+        : rgba(node.core ? c4 : c3, clamp(baseA,0,1));
+      ctx.arc(p.sx, p.sy, r, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // in-flight pulses — bright travelling points, the visible "signal"
+    for (let i=0;i<entity.brainPulses.length;i++){
+      const sig = entity.brainPulses[i];
+      const p2 = (now - sig.start) / sig.duration;
+      if (p2 < 0 || p2 > 1) continue;
+      const A = proj[sig.a], B = proj[sig.b];
+      if (!A || !B) continue;
+      const sxp = lerp(A.sx,B.sx,p2), syp = lerp(A.sy,B.sy,p2);
+      const depthp = lerp(A.depth,B.depth,p2);
+      const glowEnv = Math.sin(p2*Math.PI);
+      const sizeMul = sig.strong ? 1.6 : 1;
+      ctx.beginPath();
+      ctx.fillStyle = sig.region===alert
+        ? rgba(mixColor(c4, WARN_TINT, 0.6*alertStrength), glowEnv)
+        : rgba(c4, clamp(0.4+depthp*0.6,0,1)*glowEnv);
+      ctx.arc(sxp, syp, lerp(1.3,2.8,depthp)*sizeMul*particleScale, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // core flash — a brief extra bloom layered on the existing core
+    // glow, used when activity converges back into the decision region
+    if (entity.brainCoreFlash > 0.02){
+      const fr = sphereR*0.30*(1+entity.brainCoreFlash*0.5);
+      const fg = ctx.createRadialGradient(cx,cy,0, cx,cy, fr);
+      fg.addColorStop(0, rgba(c4, 0.5*entity.brainCoreFlash));
+      fg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = fg;
+      ctx.beginPath(); ctx.arc(cx,cy,fr,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  /* =================================================================
      ENTITY MODEL
   ================================================================= */
   const entities = {};
@@ -1118,6 +1412,18 @@
     };
     if (variant.extraShell){
       e.innerParticles = e.particles.filter(function(_,i){ return i%2===0; });
+    }
+    if (id === "s5"){
+      e.brain = buildS5Brain();
+      e.brainPulses = [];
+      e.brainNextIdleAt = performance.now() + 600;
+      e.brainAlertRegion = null;
+      e.brainAlertUntil = 0;
+      e.brainCoreFlash = 0;
+      e.brainCoreFlashDelayed = 0;
+      e.brainDelegateTargets = null;
+      e.brainReturnFrom = null;
+      e._brainFiredFor = null;
     }
     entities[id] = e;
   });
@@ -1463,6 +1769,7 @@
 
   function delegate(ids, overrideTasks, overrideDuration){
     const s5 = entities.s5;
+    s5.brainDelegateTargets = ids.slice();
     triggerWordOn(s5, "decision");
     logMessage("LANUX-S5", ids.length>1
       ? "Assigning work across " + ids.length + " specialists."
@@ -1507,6 +1814,7 @@
       const src = entities[s.fromId];
       const doneTask = src.taskText;
       const msgText = src._pendingCompleteMsg || (doneTask ? doneTask + " — complete." : "Task complete.");
+      entities.s5.brainReturnFrom = s.fromId;
       triggerWordOn(entities.s5, "ack");
       src.taskState = "complete";
       triggerWordOn(src, "complete");
@@ -1961,20 +2269,34 @@
     // core
     const coreBrightness = clamp(0.55 + amp*0.5 + fx.coreAdd, 0, 1.7);
     const coreR = sphereR*(0.16+coreBrightness*0.05);
+    const isS5Brain = entity.id === "s5" && entity.brain;
+    // S5's own brain-core cluster (drawn further below) is the "central
+    // decision region" now, so the shared glow/dot behind it is dialed
+    // back to ambient bloom rather than a solid disc — otherwise the
+    // structure would just be washed out under it. Every other model's
+    // core is untouched.
+    const coreGlowMul = isS5Brain ? 0.7 : 1;
+    const coreDotMul = isS5Brain ? 0.32 : 1;
     const coreGrad = ctx.createRadialGradient(cx,cy,0, cx,cy, coreR*2.4);
-    coreGrad.addColorStop(0, rgba(c4, clamp(0.95*coreBrightness,0,1)));
-    coreGrad.addColorStop(0.35, rgba(c3, clamp(0.5*coreBrightness,0,1)));
+    coreGrad.addColorStop(0, rgba(c4, clamp(0.95*coreBrightness*coreGlowMul,0,1)));
+    coreGrad.addColorStop(0.35, rgba(c3, clamp(0.5*coreBrightness*coreGlowMul,0,1)));
     coreGrad.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = coreGrad;
     ctx.beginPath(); ctx.arc(cx,cy,coreR*2.4,0,Math.PI*2); ctx.fill();
 
     ctx.beginPath();
-    ctx.fillStyle = rgba(c4, clamp(0.9*coreBrightness,0,1));
-    ctx.arc(cx,cy,coreR*0.55,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = rgba(c4, clamp(0.9*coreBrightness*coreDotMul,0,1));
+    ctx.arc(cx,cy,coreR*(isS5Brain?0.30:0.55),0,Math.PI*2); ctx.fill();
 
     // per-model nucleus decoration — this is what keeps two cores from
     // ever reading as "the same glowing dot with a different colour"
     drawNucleus(ctx, variant.coreStyle, cx, cy, coreR, coreBrightness, t, entity.seedC);
+
+    // S5's persistent artificial brain — layered on top of the shared
+    // glow/rings/nucleus above, additive, S5-only
+    if (entity.id === "s5" && entity.brain){
+      renderS5Brain(ctx, cx, cy, sphereR, entity, cosY, sinY, cosX, sinX, c1, c3, c4, t, now, amp, opts);
+    }
   }
 
   function drawNucleus(ctx, style, cx, cy, coreR, brightness, t, seed){
@@ -2297,6 +2619,7 @@
         spawnStream(id, "s5", "return");
       }
     });
+    updateS5Brain(entities.s5, now);
   }
 
   function frame(){
